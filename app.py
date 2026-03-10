@@ -1,55 +1,137 @@
 import streamlit as st
+import torch
+import os
+from PIL import Image
+from transformers import CLIPProcessor, CLIPModel
+from supabase import create_client, Client
 
 # ==========================================
-# 1. 웹 페이지 기본 설정
+# 1. 기본 웹 설정 및 로딩 화면
 # ==========================================
-st.set_page_config(
-    page_title="나만의 AI 갤러리",
-    page_icon="🔍",
-    layout="wide"
-)
-
+st.set_page_config(page_title="AI 갤러리 검색엔진", page_icon="🔍", layout="wide")
 st.title("🔍 멀티모달 AI 사진 검색 엔진")
-st.markdown("자연어로 사진을 검색하고, 새로운 사진을 클라우드에 업로드해보세요.")
+st.markdown("자연어로 사진을 검색하고, 새로운 사진을 AI 장부에 추가해 보세요.")
 
 # ==========================================
-# 2. 화면을 2개의 탭으로 나누기
+# 2. AI 모델 및 DB 연결 (캐싱 적용: 최초 1회만 로드)
 # ==========================================
-tab_search, tab_upload = st.tabs(["🔍 사진 검색하기", "☁️ 새 사진 업로드"])
+@st.cache_resource
+def load_system():
+    # secrets.toml에서 안전하게 키를 불러옵니다.
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    sb = create_client(url, key)
+    
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model_id = "openai/clip-vit-base-patch32"
+    
+    # 모델 로드
+    model = CLIPModel.from_pretrained(model_id, use_safetensors=True).to(device)
+    processor = CLIPProcessor.from_pretrained(model_id)
+    
+    return sb, model, processor, device
+
+with st.spinner('AI 엔진을 예열하는 중입니다... (최초 1회만 소요)'):
+    supabase, model, processor, device = load_system()
+
+# ==========================================
+# 3. 화면 탭 구성
+# ==========================================
+tab_search, tab_upload = st.tabs(["🔍 사진 검색", "☁️ 새 사진 학습(업로드)"])
 
 # ------------------------------------------
-# [탭 1] 검색 화면
+# [탭 1] 검색 기능
 # ------------------------------------------
 with tab_search:
-    st.subheader("어떤 사진을 찾으시나요?")
-    
-    # 검색어 입력창 (엔터를 치면 아래 로직이 실행됨)
-    query = st.text_input("검색어를 영어로 입력하세요 (예: a photo of a dog, a receipt)", key="search_input")
+    st.subheader("머릿속에 있는 사진을 텍스트로 찾아보세요")
+    query = st.text_input("검색어 입력 (예: a photo of a dog, a receipt)", key="search_input")
     
     if query:
-        st.info(f"'{query}'에 대한 검색을 시작합니다... (AI 연결 예정)")
-        
-        # 임시 UI: 검색 결과가 나왔다고 가정하고 이미지 틀 보여주기
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.image("https://via.placeholder.com/300x200?text=Result+1", caption="1위 (유사도: 0.85)")
-        with col2:
-            st.image("https://via.placeholder.com/300x200?text=Result+2", caption="2위 (유사도: 0.72)")
-        with col3:
-            st.image("https://via.placeholder.com/300x200?text=Result+3", caption="3위 (유사도: 0.61)")
+        with st.spinner('수많은 사진 중에서 찾는 중...'):
+            # 1. 텍스트를 AI 벡터로 변환
+            inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
+            with torch.no_grad():
+                text_features = model.get_text_features(**inputs)
+            
+            # 방어 코드 (1차원 평탄화)
+            if isinstance(text_features, torch.Tensor):
+                query_vector = text_features.flatten().cpu().numpy().tolist()
+            else:
+                query_vector = text_features[0].flatten().cpu().numpy().tolist()
+            
+            # 2. Supabase DB에서 유사도 검색
+            try:
+                response = supabase.rpc("match_images", {
+                    "query_embedding": query_vector,
+                    "match_threshold": 0.2, # 정확도를 위해 유사도 0.2 이상만
+                    "match_count": 3
+                }).execute()
+                
+                results = response.data
+                
+                # 3. 결과 화면에 뿌려주기
+                if results and len(results) > 0:
+                    st.success(f"🎉 총 {len(results)}장의 관련 사진을 찾았습니다!")
+                    
+                    # 결과를 3개의 열(Column)로 예쁘게 배치
+                    cols = st.columns(3)
+                    for idx, result in enumerate(results):
+                        with cols[idx % 3]: # 3개 단위로 줄바꿈
+                            try:
+                                # 컴퓨터에 저장된 로컬 경로의 이미지를 불러와서 화면에 띄움
+                                img = Image.open(result['file_path'])
+                                st.image(img, use_container_width=True)
+                                st.caption(f"유사도: {result['similarity']:.4f} | {result['file_name']}")
+                            except Exception as e:
+                                st.error(f"이미지를 불러올 수 없습니다: {result['file_name']}")
+                else:
+                    st.warning("⚠️ 비슷한 사진을 찾지 못했습니다. 검색어를 바꿔보세요!")
+            except Exception as e:
+                st.error(f"DB 검색 중 에러 발생: {e}")
 
 # ------------------------------------------
-# [탭 2] 업로드 화면
+# [탭 2] 업로드 기능
 # ------------------------------------------
 with tab_upload:
-    st.subheader("새로운 사진을 AI 장부에 추가하기")
-    
-    # 파일 업로드 버튼
-    uploaded_file = st.file_uploader("여기에 이미지를 드래그하거나 클릭해서 업로드하세요.", type=['png', 'jpg', 'jpeg'])
+    st.subheader("새로운 사진을 추가해 AI가 찾을 수 있게 만듭니다")
+    uploaded_file = st.file_uploader("이미지 파일 선택", type=['png', 'jpg', 'jpeg'])
     
     if uploaded_file is not None:
-        st.success("파일이 성공적으로 선택되었습니다!")
         st.image(uploaded_file, width=300)
         
-        if st.button("AI 분석 및 클라우드(Supabase) 저장"):
-            st.warning("아직 연결되지 않았습니다! (저장 로직 추가 예정)")
+        if st.button("🚀 AI 분석 및 DB 저장"):
+            with st.spinner("AI가 이미지를 분석하고 있습니다..."):
+                try:
+                    # 1. 업로드된 파일을 로컬 폴더에 먼저 임시 저장 (웹 화면에 띄우기 위함)
+                    save_dir = "demo_images"
+                    if not os.path.exists(save_dir):
+                        os.makedirs(save_dir)
+                    
+                    file_path = os.path.join(save_dir, uploaded_file.name)
+                    with open(file_path, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+                    
+                    # 2. 저장된 이미지로 벡터 추출
+                    img = Image.open(file_path).convert("RGB")
+                    inputs = processor(images=img, return_tensors="pt").to(device)
+                    
+                    with torch.no_grad():
+                        img_features = model.get_image_features(**inputs)
+                    
+                    # 방어 코드 (1차원 평탄화)
+                    if isinstance(img_features, torch.Tensor):
+                        vector_list = img_features.flatten().cpu().numpy().tolist()
+                    else:
+                        vector_list = img_features[0].flatten().cpu().numpy().tolist()
+                    
+                    # 3. Supabase DB에 Insert
+                    insert_data = {
+                        "file_name": uploaded_file.name,
+                        "file_path": os.path.abspath(file_path),
+                        "embedding": vector_list
+                    }
+                    supabase.table("image_embeddings").insert(insert_data).execute()
+                    
+                    st.success("✅ DB 저장 완료! 이제 검색 탭에서 이 사진을 찾을 수 있습니다.")
+                except Exception as e:
+                    st.error(f"❌ 처리 중 에러 발생: {e}")
