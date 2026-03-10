@@ -1,0 +1,15 @@
+# 가상환경 및 파이썬 캐시
+__pycache__/
+venv/
+.venv/
+
+# 환경 변수 및 API 키
+.env
+secrets.toml
+
+# 무거운 이미지 파일 및 테스트 폴더
+target_images/
+demo_images/
+*.jpg
+*.png
+*.jpeg
