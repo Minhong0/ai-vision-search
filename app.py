@@ -83,7 +83,7 @@ with tab_search:
                 # 🌟 한국어 모델은 점수 기준이 미세하게 다를 수 있으니, 컷오프를 일단 0.20으로 살짝 내립니다.
                 response = supabase.rpc("match_images", {
                     "query_embedding": query_vector,
-                    "match_threshold": 0.20,  
+                    "match_threshold": 0.23,  
                     "match_count": 15 
                 }).execute()
                 
