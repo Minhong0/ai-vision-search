@@ -13,11 +13,10 @@ st.title("🔍 멀티모달 AI 사진 검색 엔진")
 st.markdown("자연어로 사진을 검색하고, 새로운 사진을 AI 장부에 추가해 보세요.")
 
 # ==========================================
-# 2. AI 모델 및 DB 연결 (캐싱 적용: 최초 1회만 로드)
+# 2. AI 모델 및 DB 연결 (캐싱 적용)
 # ==========================================
 @st.cache_resource
 def load_system():
-    # secrets.toml 또는 Streamlit Cloud Secrets에서 안전하게 키를 불러옵니다.
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
     sb = create_client(url, key)
@@ -25,7 +24,6 @@ def load_system():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model_id = "openai/clip-vit-base-patch32"
     
-    # 모델 로드
     model = CLIPModel.from_pretrained(model_id, use_safetensors=True).to(device)
     processor = CLIPProcessor.from_pretrained(model_id)
     
@@ -49,28 +47,36 @@ with tab_search:
     if query:
         with st.spinner('수많은 사진 중에서 찾는 중...'):
             try:
-                # 1. 텍스트를 AI 벡터로 변환
                 inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
                 
                 with torch.no_grad():
-                    text_features = model.get_text_features(**inputs)
+                    text_outputs = model.get_text_features(**inputs)
                     
-                    # 🌟 [핵심] L2 정규화: AI의 감정 크기를 일정하게 맞춰 정확한 비교 가능하게 함
-                    text_features = text_features / text_features.norm(p=2, dim=-1, keepdim=True)
+                    # [포장지 벗기기 방어 코드]
+                    if isinstance(text_outputs, torch.Tensor):
+                        text_tensor = text_outputs
+                    elif hasattr(text_outputs, 'text_embeds'):
+                        text_tensor = text_outputs.text_embeds
+                    elif hasattr(text_outputs, 'pooler_output'):
+                        text_tensor = text_outputs.pooler_output
+                    else:
+                        text_tensor = text_outputs[0]
                     
-                    # 512차원 리스트로 깔끔하게 변환 (JSON 에러 완벽 방어)
-                    query_vector = text_features.flatten().cpu().tolist()
+                    # 🌟 알맹이에 L2 정규화 적용
+                    text_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
+                    
+                    # 512차원 리스트로 깔끔하게 변환 (초과분은 자름)
+                    query_vector = text_tensor.flatten().cpu().tolist()[:512]
                 
-                # 2. Supabase DB에서 유사도 검색
+                # DB 검색 (유사도 0.1 이상)
                 response = supabase.rpc("match_images", {
                     "query_embedding": query_vector,
-                    "match_threshold": 0.1,  # 정규화를 거쳤으므로 0.1~0.25 사이가 적당합니다
+                    "match_threshold": 0.1,  
                     "match_count": 3
                 }).execute()
                 
                 results = response.data
                 
-                # 3. 결과 화면에 뿌려주기
                 if results and len(results) > 0:
                     st.success(f"🎉 총 {len(results)}장의 관련 사진을 찾았습니다!")
                     
@@ -101,7 +107,6 @@ with tab_upload:
         if st.button("🚀 AI 분석 및 DB 저장"):
             with st.spinner("AI가 이미지를 분석하고 있습니다..."):
                 try:
-                    # 1. 업로드된 파일을 로컬 폴더에 먼저 임시 저장
                     save_dir = "demo_images"
                     if not os.path.exists(save_dir):
                         os.makedirs(save_dir)
@@ -110,25 +115,32 @@ with tab_upload:
                     with open(file_path, "wb") as f:
                         f.write(uploaded_file.getbuffer())
                     
-                    # 2. 저장된 이미지로 벡터 추출
                     img = Image.open(file_path).convert("RGB")
                     inputs = processor(images=img, return_tensors="pt").to(device)
                     
                     with torch.no_grad():
-                        img_features = model.get_image_features(**inputs)
+                        img_outputs = model.get_image_features(**inputs)
                         
-                        # 🌟 [핵심] L2 정규화 적용 (텍스트와 동일한 기준으로 맞춤)
-                        img_features = img_features / img_features.norm(p=2, dim=-1, keepdim=True)
+                        # [포장지 벗기기 방어 코드]
+                        if isinstance(img_outputs, torch.Tensor):
+                            img_tensor = img_outputs
+                        elif hasattr(img_outputs, 'image_embeds'):
+                            img_tensor = img_outputs.image_embeds
+                        elif hasattr(img_outputs, 'pooler_output'):
+                            img_tensor = img_outputs.pooler_output
+                        else:
+                            img_tensor = img_outputs[0]
+                        
+                        # 🌟 알맹이에 L2 정규화 적용
+                        img_tensor = img_tensor / img_tensor.norm(p=2, dim=-1, keepdim=True)
                         
                         # 512차원 리스트로 깔끔하게 변환
-                        vector_list = img_features.flatten().cpu().tolist()
+                        vector_list = img_tensor.flatten().cpu().tolist()[:512]
                     
-                    # 💡 DB에 넣기 전 마지막 검문소
                     if len(vector_list) != 512:
                         st.error(f"❌ 데이터 크기 오류! 512차원이어야 합니다. (현재: {len(vector_list)})")
                         st.stop()
                     
-                    # 3. Supabase DB에 Insert
                     insert_data = {
                         "file_name": uploaded_file.name,
                         "file_path": os.path.abspath(file_path),
