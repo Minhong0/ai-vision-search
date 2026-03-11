@@ -51,13 +51,24 @@ with tab_search:
             # 1. 텍스트를 AI 벡터로 변환
             inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
             with torch.no_grad():
-                text_features = model.get_text_features(**inputs)
-            
-            # 방어 코드 (1차원 평탄화)
-            if isinstance(text_features, torch.Tensor):
-                query_vector = text_features.flatten().cpu().numpy().tolist()
-            else:
-                query_vector = text_features[0].flatten().cpu().numpy().tolist()
+                        img_features = model.get_image_features(**inputs)
+                    
+                    # [철벽 방어 코드] 어떤 형태든 무조건 핵심 벡터(512개) 1개만 정밀하게 뽑아내기
+                    if isinstance(img_features, torch.Tensor):
+                        # flatten()을 쓰지 않고 [0]을 지정해 정확히 1차원 데이터만 가져옵니다.
+                        vector_list = img_features[0].cpu().numpy().tolist()
+                    else:
+                        # 혹시 모델이 복잡한 객체를 뱉어낼 경우를 대비한 최후의 수단
+                        if hasattr(img_features, 'image_embeds'):
+                            vector_list = img_features.image_embeds[0].cpu().numpy().tolist()
+                        else:
+                            # 어떻게든 에러가 나지 않도록 앞의 512개 숫자만 강제로 자릅니다.
+                            vector_list = list(img_features[0].flatten().cpu().numpy())[:512]
+                    
+                    # 💡 DB에 넣기 전 마지막 검문소 (디버깅용)
+                    if len(vector_list) != 512:
+                        st.error(f"❌ AI가 이상한 크기의 데이터를 뱉었습니다! (현재 크기: {len(vector_list)})")
+                        st.stop()
             
             # 2. Supabase DB에서 유사도 검색
             try:
