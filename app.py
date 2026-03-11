@@ -5,16 +5,16 @@ import uuid
 from PIL import Image
 from transformers import CLIPProcessor, CLIPModel
 from supabase import create_client, Client
-
+from deep_translator import GoogleTranslator 
 # ==========================================
 # 1. 기본 웹 설정
 # ==========================================
 st.set_page_config(page_title="클라우드 AI 갤러리", page_icon="☁️", layout="wide")
 st.title("☁️ 멀티모달 AI 클라우드 갤러리")
-st.markdown("자연어로 클라우드에 저장된 사진을 검색하고 관리해 보세요.")
+st.markdown("한국어 자연어로 클라우드에 저장된 사진을 검색하고 관리해 보세요.")
 
 # ==========================================
-# 2. AI 모델 및 DB 연결 (캐싱 적용)
+# 2. AI 모델 및 DB 연결
 # ==========================================
 @st.cache_resource
 def load_system():
@@ -39,16 +39,21 @@ with st.spinner('AI 엔진과 클라우드를 연결하는 중입니다...'):
 tab_search, tab_upload, tab_manage = st.tabs(["🔍 사진 검색", "☁️ 사진 업로드", "🗑️ 갤러리 관리"])
 
 # ------------------------------------------
-# [탭 1] 검색 기능
+# [탭 1] 검색 기능 (한국어 번역 탑재!)
 # ------------------------------------------
 with tab_search:
     st.subheader("머릿속에 있는 사진을 텍스트로 찾아보세요")
-    query = st.text_input("검색어 입력 (예: a photo of an ocean, a dog)", key="search_input")
+    query = st.text_input("검색어 입력 (예: 강아지 사진, 영수증, 바다)", key="search_input")
     
     if query:
-        with st.spinner('클라우드에서 사진을 찾는 중...'):
+        with st.spinner('AI가 검색어를 이해하고 사진을 찾는 중...'):
             try:
-                inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
+                # 🌟 [핵심 로직] 입력된 한국어(또는 다른 언어)를 무조건 영어로 자동 번역!
+                translated_query = GoogleTranslator(source='auto', target='en').translate(query)
+                st.info(f"💡 AI 인식 검색어: **'{translated_query}'**") # 사용자가 번역 결과를 볼 수 있게 표시
+                
+                # 원본 query 대신 영어로 번역된 translated_query를 AI에게 전달
+                inputs = processor(text=[translated_query], return_tensors="pt", padding=True).to(device)
                 
                 with torch.no_grad():
                     text_outputs = model.get_text_features(**inputs)
@@ -67,7 +72,7 @@ with tab_search:
                 
                 response = supabase.rpc("match_images", {
                     "query_embedding": query_vector,
-                    "match_threshold": 0.2,  
+                    "match_threshold": 0.1,  
                     "match_count": 3
                 }).execute()
                 
@@ -81,7 +86,6 @@ with tab_search:
                         with cols[idx % 3]:
                             try:
                                 st.image(result['file_path'], use_container_width=True)
-                                # DB에 저장된 예쁜 '원래 이름(한글)'을 출력합니다!
                                 st.caption(f"이름: {result['file_name']} | 유사도: {result['similarity']:.4f}")
                             except Exception as e:
                                 st.error(f"이미지 로드 실패")
@@ -103,24 +107,20 @@ with tab_upload:
         if st.button("🚀 클라우드 업로드 및 AI 분석"):
             with st.spinner("AI 분석 및 클라우드 저장 중..."):
                 try:
-                    # 🌟 [한글 파일명 해결 로직]
-                    original_filename = uploaded_file.name # 본명 (예: 귀여운 강아지.jpg)
+                    original_filename = uploaded_file.name
                     ext = os.path.splitext(original_filename)[1]
-                    safe_filename = f"{uuid.uuid4().hex}{ext}" # 가명 (예: a1b2c3.jpg)
+                    safe_filename = f"{uuid.uuid4().hex}{ext}"
                     
                     file_bytes = uploaded_file.getvalue()
                     
-                    # 1. 클라우드에는 안전한 '가명'으로 업로드!
                     supabase.storage.from_("images").upload(
                         path=safe_filename, 
                         file=file_bytes, 
                         file_options={"content-type": uploaded_file.type}
                     )
                     
-                    # 2. Public URL 가져오기
                     public_url = supabase.storage.from_("images").get_public_url(safe_filename)
                     
-                    # 3. AI 분석
                     img = Image.open(uploaded_file).convert("RGB")
                     inputs = processor(images=img, return_tensors="pt").to(device)
                     
@@ -139,7 +139,6 @@ with tab_upload:
                         img_tensor = img_tensor / img_tensor.norm(p=2, dim=-1, keepdim=True)
                         vector_list = img_tensor.flatten().cpu().tolist()[:512]
                     
-                    # 4. DB 장부에는 우리가 볼 수 있게 '본명(한글)'으로 기록!
                     insert_data = {
                         "file_name": original_filename, 
                         "file_path": public_url, 
@@ -173,15 +172,12 @@ with tab_manage:
                 with col1:
                     st.image(record['file_path'], width=100)
                 with col2:
-                    st.write(f"**파일명:** {record['file_name']}") # 예쁜 한글 이름 출력
+                    st.write(f"**파일명:** {record['file_name']}")
                 with col3:
                     if st.button("❌ 삭제", key=f"del_{record['file_name']}"):
                         with st.spinner("삭제 중..."):
-                            # 🌟 [삭제 해결 로직] URL에서 '가명(안전한 이름)'을 추출해서 클라우드에서 지움!
                             storage_filename = record['file_path'].split('/')[-1]
                             supabase.storage.from_("images").remove([storage_filename])
-                            
-                            # DB에서는 '본명(한글 이름)'을 기준으로 장부 기록을 지움!
                             supabase.table("image_embeddings").delete().eq("file_name", record['file_name']).execute()
                             
                             st.success("삭제되었습니다!")
