@@ -2,16 +2,18 @@ import streamlit as st
 import torch
 import os
 import uuid
+import requests  # 🌟 [추가됨] 클라우드 이미지를 다운로드하기 위한 통신 라이브러리
 from PIL import Image
 from transformers import CLIPProcessor, CLIPModel
 from supabase import create_client, Client
-from deep_translator import GoogleTranslator 
+from deep_translator import GoogleTranslator
+
 # ==========================================
 # 1. 기본 웹 설정
 # ==========================================
 st.set_page_config(page_title="클라우드 AI 갤러리", page_icon="☁️", layout="wide")
 st.title("☁️ 멀티모달 AI 클라우드 갤러리")
-st.markdown("한국어 자연어로 클라우드에 저장된 사진을 검색하고 관리해 보세요.")
+st.markdown("한국어 자연어로 클라우드에 저장된 사진을 검색하고 다운로드해 보세요.")
 
 # ==========================================
 # 2. AI 모델 및 DB 연결
@@ -39,7 +41,7 @@ with st.spinner('AI 엔진과 클라우드를 연결하는 중입니다...'):
 tab_search, tab_upload, tab_manage = st.tabs(["🔍 사진 검색", "☁️ 사진 업로드", "🗑️ 갤러리 관리"])
 
 # ------------------------------------------
-# [탭 1] 검색 기능 (한국어 번역 탑재!)
+# [탭 1] 검색 기능 (다운로드 추가)
 # ------------------------------------------
 with tab_search:
     st.subheader("머릿속에 있는 사진을 텍스트로 찾아보세요")
@@ -48,11 +50,9 @@ with tab_search:
     if query:
         with st.spinner('AI가 검색어를 이해하고 사진을 찾는 중...'):
             try:
-                # 🌟 [핵심 로직] 입력된 한국어(또는 다른 언어)를 무조건 영어로 자동 번역!
                 translated_query = GoogleTranslator(source='auto', target='en').translate(query)
-                st.info(f"💡 AI 인식 검색어: **'{translated_query}'**") # 사용자가 번역 결과를 볼 수 있게 표시
+                st.info(f"💡 AI 인식 검색어: **'{translated_query}'**")
                 
-                # 원본 query 대신 영어로 번역된 translated_query를 AI에게 전달
                 inputs = processor(text=[translated_query], return_tensors="pt", padding=True).to(device)
                 
                 with torch.no_grad():
@@ -72,7 +72,7 @@ with tab_search:
                 
                 response = supabase.rpc("match_images", {
                     "query_embedding": query_vector,
-                    "match_threshold": 0.21,  
+                    "match_threshold": 0.1,  
                     "match_count": 3
                 }).execute()
                 
@@ -87,6 +87,16 @@ with tab_search:
                             try:
                                 st.image(result['file_path'], use_container_width=True)
                                 st.caption(f"이름: {result['file_name']} | 유사도: {result['similarity']:.4f}")
+                                
+                                # 🌟 [다운로드 기능 추가] 클라우드 URL에서 이미지를 읽어와서 버튼으로 제공
+                                img_data = requests.get(result['file_path']).content
+                                st.download_button(
+                                    label="⬇️ 다운로드",
+                                    data=img_data,
+                                    file_name=result['file_name'], # 저장될 때 원래 한글 이름으로 저장됨!
+                                    mime="image/jpeg",
+                                    key=f"dl_search_{idx}_{result['file_name']}" # 버튼끼리 안 겹치게 고유 키 부여
+                                )
                             except Exception as e:
                                 st.error(f"이미지 로드 실패")
                 else:
@@ -151,7 +161,7 @@ with tab_upload:
                     st.error(f"❌ 처리 중 에러 발생: {e}")
 
 # ------------------------------------------
-# [탭 3] 관리 및 삭제 기능
+# [탭 3] 관리 및 삭제 기능 (다운로드 추가)
 # ------------------------------------------
 with tab_manage:
     st.subheader("🗑️ 클라우드에 저장된 갤러리 관리")
@@ -168,12 +178,27 @@ with tab_manage:
             st.write(f"총 **{len(records)}**장의 사진이 저장되어 있습니다.")
             
             for record in records:
-                col1, col2, col3 = st.columns([1, 3, 1])
+                # 🌟 다운로드 버튼과 삭제 버튼을 나란히 배치하기 위해 열(Column) 비율을 조절
+                col1, col2, col3, col4 = st.columns([1, 2, 1, 1])
+                
                 with col1:
                     st.image(record['file_path'], width=100)
                 with col2:
                     st.write(f"**파일명:** {record['file_name']}")
                 with col3:
+                    # 🌟 [다운로드 기능 추가]
+                    try:
+                        img_data = requests.get(record['file_path']).content
+                        st.download_button(
+                            label="⬇️ 다운로드",
+                            data=img_data,
+                            file_name=record['file_name'],
+                            mime="image/jpeg",
+                            key=f"dl_manage_{record['file_name']}"
+                        )
+                    except:
+                        st.write("다운로드 불가")
+                with col4:
                     if st.button("❌ 삭제", key=f"del_{record['file_name']}"):
                         with st.spinner("삭제 중..."):
                             storage_filename = record['file_path'].split('/')[-1]
