@@ -15,7 +15,6 @@ st.set_page_config(page_title="클라우드 AI 갤러리", page_icon="☁️", l
 st.title("☁️ 멀티모달 AI 클라우드 갤러리")
 st.markdown("한국어 자연어로 클라우드에 저장된 사진을 검색하고 다운로드해 보세요.")
 
-# 🌟 [핵심] '더 보기' 버튼을 위한 웹사이트의 기억력 설정
 if "display_count" not in st.session_state:
     st.session_state.display_count = 3
 if "last_query" not in st.session_state:
@@ -47,14 +46,13 @@ with st.spinner('AI 엔진과 클라우드를 연결하는 중입니다...'):
 tab_search, tab_upload, tab_manage = st.tabs(["🔍 사진 검색", "☁️ 사진 업로드", "🗑️ 갤러리 관리"])
 
 # ------------------------------------------
-# [탭 1] 검색 기능 (더 보기 & 메타데이터 추가)
+# [탭 1] 검색 기능
 # ------------------------------------------
 with tab_search:
     st.subheader("머릿속에 있는 사진을 텍스트로 찾아보세요")
     query = st.text_input("검색어 입력 (예: 강아지 사진, 영수증, 바다)", key="search_input")
     
     if query:
-        # 검색어가 바뀌면 화면에 보여줄 개수를 다시 3개로 초기화!
         if query != st.session_state.last_query:
             st.session_state.display_count = 3
             st.session_state.last_query = query
@@ -81,7 +79,6 @@ with tab_search:
                     text_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
                     query_vector = text_tensor.flatten().cpu().tolist()[:512]
                 
-                # 🌟 [핵심 변경] DB에서는 미리 넉넉하게 15개를 찾아옵니다. (화면엔 나눠서 보여줌)
                 response = supabase.rpc("match_images", {
                     "query_embedding": query_vector,
                     "match_threshold": 0.25,  
@@ -93,7 +90,6 @@ with tab_search:
                 if results and len(results) > 0:
                     st.success(f"🎉 총 {len(results)}장의 관련 사진을 찾았습니다!")
                     
-                    # 기억하고 있는 개수(display_count)만큼만 잘라서 보여줌
                     displayed_results = results[:st.session_state.display_count]
                     
                     cols = st.columns(3)
@@ -102,7 +98,6 @@ with tab_search:
                             try:
                                 st.image(result['file_path'], use_container_width=True)
                                 
-                                # 🌟 [메타데이터 표시] 용량과 날짜, 유사도를 깔끔하게 정리해서 보여줍니다.
                                 file_size = result.get('file_size_kb', 0) or 0
                                 created_date = result.get('created_at', '알 수 없음')[:10] if result.get('created_at') else '최근'
                                 
@@ -110,22 +105,23 @@ with tab_search:
                                 st.caption(f"🎯 유사도: {result['similarity']:.3f} | 💾 {file_size}KB | 📅 {created_date}")
                                 
                                 img_data = requests.get(result['file_path']).content
+                                
+                                # 🌟 고유번호(id)를 버튼 키에 적용
                                 st.download_button(
                                     label="⬇️ 다운로드",
                                     data=img_data,
                                     file_name=result['file_name'],
                                     mime="image/jpeg",
-                                    key=f"dl_search_{idx}_{result['file_name']}"
+                                    key=f"dl_search_{result['id']}" 
                                 )
                             except Exception as e:
                                 st.error(f"이미지 로드 실패")
                     
-                    # 🌟 [더 보기 버튼 로직] 아직 보여줄 사진이 더 남아있다면 버튼 생성!
                     if st.session_state.display_count < len(results):
                         st.markdown("---")
                         if st.button("🔽 더 보기 (Load More)", use_container_width=True):
-                            st.session_state.display_count += 3 # 3개 더 보여줘!
-                            st.rerun() # 화면 새로고침
+                            st.session_state.display_count += 3
+                            st.rerun()
                 else:
                     st.warning("⚠️ 비슷한 사진을 찾지 못했습니다. 검색어를 바꿔보세요!")
             except Exception as e:
@@ -163,8 +159,6 @@ with tab_upload:
                     safe_filename = f"{uuid.uuid4().hex}{ext}"
                     
                     file_bytes = uploaded_file.getvalue()
-                    
-                    # 🌟 [핵심 추가] 파일 용량을 KB 단위로 계산
                     file_size_kb = len(file_bytes) // 1024 
                     
                     supabase.storage.from_("images").upload(
@@ -193,7 +187,6 @@ with tab_upload:
                         img_tensor = img_tensor / img_tensor.norm(p=2, dim=-1, keepdim=True)
                         vector_list = img_tensor.flatten().cpu().tolist()[:512]
                     
-                    # 🌟 DB 장부에 '용량(file_size_kb)' 데이터도 같이 적어 넣습니다.
                     insert_data = {
                         "file_name": original_filename, 
                         "file_path": public_url,
@@ -222,7 +215,8 @@ with tab_manage:
         st.rerun()
 
     try:
-        records = supabase.table("image_embeddings").select("file_name", "file_path", "file_size_kb", "created_at").execute().data
+        # 🌟 id 열을 명시적으로 추가해서 가져옵니다.
+        records = supabase.table("image_embeddings").select("id", "file_name", "file_path", "file_size_kb", "created_at").execute().data
         
         if not records:
             st.info("현재 클라우드에 저장된 사진이 없습니다.")
@@ -235,7 +229,6 @@ with tab_manage:
                 with col1:
                     st.image(record['file_path'], width=100)
                 with col2:
-                    # 관리 탭에서도 용량과 날짜를 보여줍니다!
                     file_size = record.get('file_size_kb', 0) or 0
                     created_date = record.get('created_at', '알 수 없음')[:10] if record.get('created_at') else '기존 데이터'
                     
@@ -244,21 +237,26 @@ with tab_manage:
                 with col3:
                     try:
                         img_data = requests.get(record['file_path']).content
+                        
+                        # 🌟 고유번호(id)를 버튼 키에 적용
                         st.download_button(
                             label="⬇️ 다운로드",
                             data=img_data,
                             file_name=record['file_name'],
                             mime="image/jpeg",
-                            key=f"dl_manage_{record['file_name']}"
+                            key=f"dl_manage_{record['id']}" 
                         )
                     except:
                         st.write("다운로드 불가")
                 with col4:
-                    if st.button("❌ 삭제", key=f"del_{record['file_name']}"):
+                    # 🌟 고유번호(id)를 버튼 키에 적용
+                    if st.button("❌ 삭제", key=f"del_{record['id']}"):
                         with st.spinner("삭제 중..."):
                             storage_filename = record['file_path'].split('/')[-1]
                             supabase.storage.from_("images").remove([storage_filename])
-                            supabase.table("image_embeddings").delete().eq("file_name", record['file_name']).execute()
+                            
+                            # 🌟 이름 대신 고유한 id를 기준으로 정확히 1개만 지웁니다!
+                            supabase.table("image_embeddings").delete().eq("id", record['id']).execute()
                             
                             st.success("삭제되었습니다!")
                             st.rerun()
