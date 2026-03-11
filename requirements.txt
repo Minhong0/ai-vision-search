@@ -4,3 +4,4 @@ pillow
 transformers
 supabase
 deep-translator
+requests
