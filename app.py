@@ -90,7 +90,7 @@ with tab_search:
                 response = supabase.rpc("search_images_with_ocr", {
                     "query_embedding": query_vector,
                     "search_keyword": query, # 사용자가 입력한 생짜 한국어 단어도 같이 넘겨줍니다.
-                    "match_threshold": 0.20,  
+                    "match_threshold": 0.23,  
                     "match_count": 15 
                 }).execute()
                 
