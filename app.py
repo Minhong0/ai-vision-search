@@ -6,14 +6,13 @@ import requests
 from PIL import Image
 from transformers import CLIPProcessor, CLIPModel
 from supabase import create_client, Client
-from deep_translator import GoogleTranslator
 
 # ==========================================
 # 1. 기본 웹 설정 및 세션 기억력 초기화
 # ==========================================
-st.set_page_config(page_title="클라우드 AI 갤러리", page_icon="☁️", layout="wide")
-st.title("☁️ 멀티모달 AI 클라우드 갤러리")
-st.markdown("한국어 자연어로 클라우드에 저장된 사진을 검색하고 다운로드해 보세요.")
+st.set_page_config(page_title="한국어 AI 클라우드 갤러리", page_icon="🇰🇷", layout="wide")
+st.title("🇰🇷 멀티모달 AI 클라우드 갤러리 (한국어 특화)")
+st.markdown("번역기를 거치지 않는 '한국어 원어민 AI'로 훨씬 정교하게 사진을 검색해 보세요.")
 
 if "display_count" not in st.session_state:
     st.session_state.display_count = 3
@@ -21,7 +20,7 @@ if "last_query" not in st.session_state:
     st.session_state.last_query = ""
 
 # ==========================================
-# 2. AI 모델 및 DB 연결
+# 2. 🌟 AI 모델 (한국어 전용으로 교체!) 및 DB 연결
 # ==========================================
 @st.cache_resource
 def load_system():
@@ -30,14 +29,16 @@ def load_system():
     sb = create_client(url, key)
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model_id = "openai/clip-vit-base-patch32"
+    
+    # 🌟 [핵심] 한국어 데이터로 재학습된 국내 오픈소스 모델! (번역기 불필요)
+    model_id = "Bingsu/clip-vit-base-patch32-ko"
     
     model = CLIPModel.from_pretrained(model_id, use_safetensors=True).to(device)
     processor = CLIPProcessor.from_pretrained(model_id)
     
     return sb, model, processor, device
 
-with st.spinner('AI 엔진과 클라우드를 연결하는 중입니다...'):
+with st.spinner('🇰🇷 한국어 원어민 AI 엔진을 깨우는 중입니다...'):
     supabase, model, processor, device = load_system()
 
 # ==========================================
@@ -46,7 +47,7 @@ with st.spinner('AI 엔진과 클라우드를 연결하는 중입니다...'):
 tab_search, tab_upload, tab_manage = st.tabs(["🔍 사진 검색", "☁️ 사진 업로드", "🗑️ 갤러리 관리"])
 
 # ------------------------------------------
-# [탭 1] 검색 기능
+# [탭 1] 검색 기능 (번역기 제거!)
 # ------------------------------------------
 with tab_search:
     st.subheader("머릿속에 있는 사진을 텍스트로 찾아보세요")
@@ -57,12 +58,12 @@ with tab_search:
             st.session_state.display_count = 3
             st.session_state.last_query = query
 
-        with st.spinner('AI가 검색어를 이해하고 사진을 찾는 중...'):
+        with st.spinner('AI가 한국어 검색어를 직접 이해하고 사진을 찾는 중...'):
             try:
-                translated_query = GoogleTranslator(source='auto', target='en').translate(query)
-                st.info(f"💡 AI 인식 검색어: **'{translated_query}'**")
+                st.info(f"💡 검색 진행 중: **'{query}'** (🇰🇷 한국어 원어민 AI 가동 중)")
                 
-                inputs = processor(text=[translated_query], return_tensors="pt", padding=True).to(device)
+                # 🌟 번역 없이 한국어(query)를 그대로 AI에게 직행!
+                inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
                 
                 with torch.no_grad():
                     text_outputs = model.get_text_features(**inputs)
@@ -79,9 +80,10 @@ with tab_search:
                     text_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
                     query_vector = text_tensor.flatten().cpu().tolist()[:512]
                 
+                # 🌟 한국어 모델은 점수 기준이 미세하게 다를 수 있으니, 컷오프를 일단 0.20으로 살짝 내립니다.
                 response = supabase.rpc("match_images", {
                     "query_embedding": query_vector,
-                    "match_threshold": 0.25,  
+                    "match_threshold": 0.20,  
                     "match_count": 15 
                 }).execute()
                 
@@ -104,161 +106,4 @@ with tab_search:
                                 st.markdown(f"**{result['file_name']}**")
                                 st.caption(f"🎯 유사도: {result['similarity']:.3f} | 💾 {file_size}KB | 📅 {created_date}")
                                 
-                                img_data = requests.get(result['file_path']).content
-                                
-                                # 🌟 고유번호(id)를 버튼 키에 적용
-                                st.download_button(
-                                    label="⬇️ 다운로드",
-                                    data=img_data,
-                                    file_name=result['file_name'],
-                                    mime="image/jpeg",
-                                    key=f"dl_search_{result['id']}" 
-                                )
-                            except Exception as e:
-                                st.error(f"이미지 로드 실패")
-                    
-                    if st.session_state.display_count < len(results):
-                        st.markdown("---")
-                        if st.button("🔽 더 보기 (Load More)", use_container_width=True):
-                            st.session_state.display_count += 3
-                            st.rerun()
-                else:
-                    st.warning("⚠️ 비슷한 사진을 찾지 못했습니다. 검색어를 바꿔보세요!")
-            except Exception as e:
-                st.error(f"❌ 검색 중 에러 발생: {e}")
-
-# ------------------------------------------
-# [탭 2] 업로드 기능
-# ------------------------------------------
-with tab_upload:
-    st.subheader("새로운 사진들을 클라우드에 한 번에 업로드합니다")
-    
-    uploaded_files = st.file_uploader(
-        "이미지 파일 선택 (여러 장 드래그 앤 드롭 가능)", 
-        type=['png', 'jpg', 'jpeg'], 
-        accept_multiple_files=True
-    )
-    
-    if uploaded_files:
-        st.write(f"총 **{len(uploaded_files)}**장의 사진이 선택되었습니다.")
-        
-        cols = st.columns(5)
-        for idx, file in enumerate(uploaded_files):
-            with cols[idx % 5]:
-                st.image(file, use_container_width=True)
-        
-        if st.button("🚀 일괄 클라우드 업로드 및 AI 분석"):
-            progress_text = "업로드 및 분석을 시작합니다..."
-            my_bar = st.progress(0, text=progress_text)
-            success_count = 0
-            
-            for idx, uploaded_file in enumerate(uploaded_files):
-                try:
-                    original_filename = uploaded_file.name
-                    ext = os.path.splitext(original_filename)[1]
-                    safe_filename = f"{uuid.uuid4().hex}{ext}"
-                    
-                    file_bytes = uploaded_file.getvalue()
-                    file_size_kb = len(file_bytes) // 1024 
-                    
-                    supabase.storage.from_("images").upload(
-                        path=safe_filename, 
-                        file=file_bytes, 
-                        file_options={"content-type": uploaded_file.type}
-                    )
-                    
-                    public_url = supabase.storage.from_("images").get_public_url(safe_filename)
-                    
-                    img = Image.open(uploaded_file).convert("RGB")
-                    inputs = processor(images=img, return_tensors="pt").to(device)
-                    
-                    with torch.no_grad():
-                        img_outputs = model.get_image_features(**inputs)
-                        
-                        if isinstance(img_outputs, torch.Tensor):
-                            img_tensor = img_outputs
-                        elif hasattr(img_outputs, 'image_embeds'):
-                            img_tensor = img_outputs.image_embeds
-                        elif hasattr(img_outputs, 'pooler_output'):
-                            img_tensor = img_outputs.pooler_output
-                        else:
-                            img_tensor = img_outputs[0]
-                        
-                        img_tensor = img_tensor / img_tensor.norm(p=2, dim=-1, keepdim=True)
-                        vector_list = img_tensor.flatten().cpu().tolist()[:512]
-                    
-                    insert_data = {
-                        "file_name": original_filename, 
-                        "file_path": public_url,
-                        "file_size_kb": file_size_kb, 
-                        "embedding": vector_list
-                    }
-                    supabase.table("image_embeddings").insert(insert_data).execute()
-                    
-                    success_count += 1
-                    
-                except Exception as e:
-                    st.error(f"❌ '{uploaded_file.name}' 처리 중 에러: {e}")
-                
-                progress_percent = int(((idx + 1) / len(uploaded_files)) * 100)
-                my_bar.progress(progress_percent, text=f"진행 중... ({idx+1}/{len(uploaded_files)} 장 완료)")
-            
-            st.success(f"✅ 총 {success_count}장의 사진이 성공적으로 클라우드에 저장되었습니다!")
-
-# ------------------------------------------
-# [탭 3] 관리 및 삭제 기능
-# ------------------------------------------
-with tab_manage:
-    st.subheader("🗑️ 클라우드에 저장된 갤러리 관리")
-    
-    if st.button("🔄 목록 새로고침"):
-        st.rerun()
-
-    try:
-        # 🌟 id 열을 명시적으로 추가해서 가져옵니다.
-        records = supabase.table("image_embeddings").select("id", "file_name", "file_path", "file_size_kb", "created_at").execute().data
-        
-        if not records:
-            st.info("현재 클라우드에 저장된 사진이 없습니다.")
-        else:
-            st.write(f"총 **{len(records)}**장의 사진이 저장되어 있습니다.")
-            
-            for record in records:
-                col1, col2, col3, col4 = st.columns([1, 2, 1, 1])
-                
-                with col1:
-                    st.image(record['file_path'], width=100)
-                with col2:
-                    file_size = record.get('file_size_kb', 0) or 0
-                    created_date = record.get('created_at', '알 수 없음')[:10] if record.get('created_at') else '기존 데이터'
-                    
-                    st.write(f"**{record['file_name']}**")
-                    st.caption(f"💾 {file_size}KB | 📅 {created_date}")
-                with col3:
-                    try:
-                        img_data = requests.get(record['file_path']).content
-                        
-                        # 🌟 고유번호(id)를 버튼 키에 적용
-                        st.download_button(
-                            label="⬇️ 다운로드",
-                            data=img_data,
-                            file_name=record['file_name'],
-                            mime="image/jpeg",
-                            key=f"dl_manage_{record['id']}" 
-                        )
-                    except:
-                        st.write("다운로드 불가")
-                with col4:
-                    # 🌟 고유번호(id)를 버튼 키에 적용
-                    if st.button("❌ 삭제", key=f"del_{record['id']}"):
-                        with st.spinner("삭제 중..."):
-                            storage_filename = record['file_path'].split('/')[-1]
-                            supabase.storage.from_("images").remove([storage_filename])
-                            
-                            # 🌟 이름 대신 고유한 id를 기준으로 정확히 1개만 지웁니다!
-                            supabase.table("image_embeddings").delete().eq("id", record['id']).execute()
-                            
-                            st.success("삭제되었습니다!")
-                            st.rerun()
-    except Exception as e:
-        st.error(f"목록을 불러오는 중 에러가 발생했습니다: {e}")
+                                img
