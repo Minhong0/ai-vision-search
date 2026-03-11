@@ -1,7 +1,7 @@
 import streamlit as st
 import torch
 import os
-import uuid  # 파일명 중복 방지를 위한 랜덤 이름 생성기
+import uuid
 from PIL import Image
 from transformers import CLIPProcessor, CLIPModel
 from supabase import create_client, Client
@@ -34,7 +34,7 @@ with st.spinner('AI 엔진과 클라우드를 연결하는 중입니다...'):
     supabase, model, processor, device = load_system()
 
 # ==========================================
-# 3. 화면 탭 구성 (3개로 확장!)
+# 3. 화면 탭 구성
 # ==========================================
 tab_search, tab_upload, tab_manage = st.tabs(["🔍 사진 검색", "☁️ 사진 업로드", "🗑️ 갤러리 관리"])
 
@@ -65,6 +65,7 @@ with tab_search:
                     text_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
                     query_vector = text_tensor.flatten().cpu().tolist()[:512]
                 
+                # 2. Supabase DB 검색
                 response = supabase.rpc("match_images", {
                     "query_embedding": query_vector,
                     "match_threshold": 0.1,  
@@ -73,22 +74,27 @@ with tab_search:
                 
                 results = response.data
                 
+                # 3. 검색 결과 클라우드 URL로 출력
                 if results and len(results) > 0:
                     st.success(f"🎉 총 {len(results)}장의 관련 사진을 찾았습니다!")
                     
+                    # 💡 검색 탭의 출력 코드 수정
                     cols = st.columns(3)
                     for idx, result in enumerate(results):
-                        with cols[idx % 3]: 
-                            # 이제 로컬 파일이 아닌 클라우드 URL(file_path)을 직접 띄웁니다!
-                            st.image(result['file_path'], use_container_width=True)
-                            st.caption(f"유사도: {result['similarity']:.4f}")
+                        with cols[idx % 3]:
+                            try:
+                                # 클라우드 URL(file_path)을 그대로 사용
+                                st.image(result['file_path'], use_container_width=True)
+                                st.caption(f"유사도: {result['similarity']:.4f}")
+                            except Exception as e:
+                                st.error(f"이미지 로드 실패")
                 else:
                     st.warning("⚠️ 비슷한 사진을 찾지 못했습니다. 검색어를 바꿔보세요!")
             except Exception as e:
                 st.error(f"❌ 검색 중 에러 발생: {e}")
 
 # ------------------------------------------
-# [탭 2] 업로드 기능 (Supabase Storage 연동)
+# [탭 2] 업로드 기능
 # ------------------------------------------
 with tab_upload:
     st.subheader("새로운 사진을 클라우드에 업로드합니다")
@@ -100,21 +106,23 @@ with tab_upload:
         if st.button("🚀 클라우드 업로드 및 AI 분석"):
             with st.spinner("AI 분석 및 클라우드 저장 중..."):
                 try:
-                    # 1. 파일명 중복 방지를 위해 고유한 이름(UUID) 생성
-                    unique_filename = f"{uuid.uuid4().hex[:8]}_{uploaded_file.name}"
+                    # 🌟 [핵심 변경 사항] 한글/공백 에러 방지를 위해 파일명을 완전한 랜덤 영문+숫자로 바꿈
+                    ext = os.path.splitext(uploaded_file.name)[1] # 확장자 추출 (예: .jpg)
+                    unique_filename = f"{uuid.uuid4().hex}{ext}"  # 예: 3f9a2b... .jpg
+                    
                     file_bytes = uploaded_file.getvalue()
                     
-                    # 2. Supabase Storage 'images' 양동이에 파일 업로드
+                    # 1. Supabase Storage 업로드
                     supabase.storage.from_("images").upload(
                         path=unique_filename, 
                         file=file_bytes, 
                         file_options={"content-type": uploaded_file.type}
                     )
                     
-                    # 3. 업로드된 파일의 인터넷 접속 주소(Public URL) 가져오기
+                    # 2. Public URL 가져오기
                     public_url = supabase.storage.from_("images").get_public_url(unique_filename)
                     
-                    # 4. 이미지 벡터(AI 특징) 추출
+                    # 3. AI 분석
                     img = Image.open(uploaded_file).convert("RGB")
                     inputs = processor(images=img, return_tensors="pt").to(device)
                     
@@ -133,7 +141,7 @@ with tab_upload:
                         img_tensor = img_tensor / img_tensor.norm(p=2, dim=-1, keepdim=True)
                         vector_list = img_tensor.flatten().cpu().tolist()[:512]
                     
-                    # 5. DB 장부에 저장 (로컬 경로 대신 public_url을 저장!)
+                    # 4. DB 장부 기록 (저장할 때 파일명은 고유한 영문 이름으로, 경로는 public_url로 저장)
                     insert_data = {
                         "file_name": unique_filename,
                         "file_path": public_url, 
@@ -151,12 +159,11 @@ with tab_upload:
 with tab_manage:
     st.subheader("🗑️ 클라우드에 저장된 갤러리 관리")
     
-    # 새로고침 버튼
     if st.button("🔄 목록 새로고침"):
         st.rerun()
 
     try:
-        # DB에서 저장된 모든 사진 목록 불러오기
+        # DB에서 저장된 모든 사진 목록 불러오기 (검색과 마찬가지로 file_path를 활용)
         records = supabase.table("image_embeddings").select("file_name", "file_path").execute().data
         
         if not records:
@@ -164,23 +171,22 @@ with tab_manage:
         else:
             st.write(f"총 **{len(records)}**장의 사진이 저장되어 있습니다.")
             
-            # 사진들을 리스트 형태로 보여주고 삭제 버튼 달기
             for record in records:
                 col1, col2, col3 = st.columns([1, 3, 1])
                 with col1:
-                    st.image(record['file_path'], width=100) # 클라우드 이미지 미리보기
+                    # 클라우드 URL을 직접 가져와서 보여줌
+                    st.image(record['file_path'], width=100)
                 with col2:
                     st.write(f"**파일명:** {record['file_name']}")
                 with col3:
-                    # 삭제 버튼을 누르면 실행되는 로직
                     if st.button("❌ 삭제", key=f"del_{record['file_name']}"):
                         with st.spinner("삭제 중..."):
-                            # 1. 클라우드 양동이(Storage)에서 파일 삭제
+                            # Storage 버킷에서 파일 삭제
                             supabase.storage.from_("images").remove([record['file_name']])
-                            # 2. DB 장부(Table)에서 기록 삭제
+                            # DB에서 데이터 삭제
                             supabase.table("image_embeddings").delete().eq("file_name", record['file_name']).execute()
                             
                             st.success("삭제되었습니다!")
-                            st.rerun() # 화면 새로고침
+                            st.rerun()
     except Exception as e:
         st.error(f"목록을 불러오는 중 에러가 발생했습니다: {e}")
