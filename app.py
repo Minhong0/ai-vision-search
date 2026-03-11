@@ -72,7 +72,7 @@ with tab_search:
                 
                 response = supabase.rpc("match_images", {
                     "query_embedding": query_vector,
-                    "match_threshold": 0.2,  
+                    "match_threshold": 0.21,  
                     "match_count": 3
                 }).execute()
                 
