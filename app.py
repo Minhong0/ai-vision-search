@@ -9,9 +9,9 @@ from supabase import create_client, Client
 from deep_translator import GoogleTranslator
 
 # 기본 웹 설정
-st.set_page_config(page_title="클라우드 AI 갤러리", page_icon="☁️", layout="wide")
-st.title("☁️ 멀티모달 AI 클라우드 갤러리")
-st.markdown("한국어 자연어로 클라우드에 저장된 사진을 검색하고 다운로드해 보세요.")
+st.set_page_config(page_title="인제 클라우드 갤러리", page_icon="☁️", layout="wide")
+st.title("☁️ 인제 클라우드 갤러리")
+st.markdown("클라우드에 저장된 사진을 검색하고 다운로드해 보세요.")
 
 # AI 모델 및 DB 연결
 @st.cache_resource
