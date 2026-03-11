@@ -8,12 +8,10 @@ from PIL import Image
 from transformers import CLIPProcessor, CLIPModel
 from supabase import create_client, Client
 
-# ==========================================
-# 1. 기본 웹 설정 및 세션 기억력 초기화
-# ==========================================
-st.set_page_config(page_title="한국어 AI 클라우드 갤러리", page_icon="🇰🇷", layout="wide")
-st.title("🇰🇷 멀티모달 AI 클라우드 갤러리 (한국어 특화)")
-st.markdown("번역기를 거치지 않는 '한국어 원어민 AI'로 훨씬 정교하게 사진을 검색해 보세요.")
+# 기본 웹 설정
+st.set_page_config(page_title="인제 클라우드 갤러리", page_icon="🇰🇷", layout="wide")
+st.title("인제 클라우드 갤러리")
+st.markdown("원하는 사진을 검색해 보세요.")
 
 if "display_count" not in st.session_state:
     st.session_state.display_count = 3
@@ -22,9 +20,9 @@ if "last_query" not in st.session_state:
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = str(uuid.uuid4())
 
-# ==========================================
-# 2. AI 모델 및 DB 연결
-# ==========================================
+
+# AI 모델 및 DB 연결
+
 @st.cache_resource
 def load_system():
     url = st.secrets["SUPABASE_URL"]
@@ -40,17 +38,14 @@ def load_system():
     
     return sb, model, processor, device
 
-with st.spinner('🇰🇷 한국어 원어민 AI 엔진을 깨우는 중입니다...'):
+with st.spinner('AI 엔진을 깨우는 중입니다...'):
     supabase, model, processor, device = load_system()
 
-# ==========================================
-# 3. 화면 탭 구성
-# ==========================================
+# 화면 탭 구성
+
 tab_search, tab_upload, tab_manage = st.tabs(["🔍 사진 검색", "☁️ 사진 업로드", "🗑️ 갤러리 관리"])
 
-# ------------------------------------------
 # [탭 1] 검색 기능
-# ------------------------------------------
 with tab_search:
     st.subheader("머릿속에 있는 사진을 텍스트로 찾아보세요")
     query = st.text_input("검색어 입력 (예: 강아지 사진, 영수증, 바다)", key="search_input")
@@ -128,9 +123,7 @@ with tab_search:
             except Exception as e:
                 st.error(f"❌ 검색 중 에러 발생: {e}")
 
-# ------------------------------------------
 # [탭 2] 업로드 기능
-# ------------------------------------------
 with tab_upload:
     st.subheader("새로운 사진들을 클라우드에 한 번에 업로드합니다")
     
@@ -205,15 +198,13 @@ with tab_upload:
                 progress_percent = int(((idx + 1) / len(uploaded_files)) * 100)
                 my_bar.progress(progress_percent, text=f"진행 중... ({idx+1}/{len(uploaded_files)} 장 완료)")
             
-            st.success(f"✅ 총 {success_count}장의 사진이 성공적으로 저장되었습니다! 화면이 새로고침됩니다.")
+            st.success(f"✅ 총 {success_count}장의 사진이 성공적으로 저장되었습니다!")
             time.sleep(1.5)
             
             st.session_state.uploader_key = str(uuid.uuid4())
             st.rerun()
 
-# ------------------------------------------
 # [탭 3] 관리 및 삭제 기능
-# ------------------------------------------
 with tab_manage:
     st.subheader("🗑️ 클라우드에 저장된 갤러리 관리")
     
