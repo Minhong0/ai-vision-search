@@ -67,7 +67,7 @@ with tab_search:
                 # 2. Supabase DB에서 유사도 검색
                 response = supabase.rpc("match_images", {
                     "query_embedding": query_vector,
-                    "match_threshold": 0.2, # 정확도를 위해 유사도 0.2 이상만
+                    "match_threshold": 0.1, # 정확도를 위해 유사도 0.2 이상만
                     "match_count": 3
                 }).execute()
                 
