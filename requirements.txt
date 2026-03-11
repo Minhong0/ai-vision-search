@@ -3,5 +3,6 @@ torch
 pillow
 transformers
 supabase
-deep-translator
 requests
+easyocr
+numpy
