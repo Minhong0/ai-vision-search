@@ -8,16 +8,12 @@ from transformers import CLIPProcessor, CLIPModel
 from supabase import create_client, Client
 from deep_translator import GoogleTranslator
 
-# ==========================================
-# 1. 기본 웹 설정
-# ==========================================
+# 기본 웹 설정
 st.set_page_config(page_title="클라우드 AI 갤러리", page_icon="☁️", layout="wide")
 st.title("☁️ 멀티모달 AI 클라우드 갤러리")
 st.markdown("한국어 자연어로 클라우드에 저장된 사진을 검색하고 다운로드해 보세요.")
 
-# ==========================================
-# 2. AI 모델 및 DB 연결
-# ==========================================
+# AI 모델 및 DB 연결
 @st.cache_resource
 def load_system():
     url = st.secrets["SUPABASE_URL"]
@@ -35,14 +31,11 @@ def load_system():
 with st.spinner('AI 엔진과 클라우드를 연결하는 중입니다...'):
     supabase, model, processor, device = load_system()
 
-# ==========================================
-# 3. 화면 탭 구성
-# ==========================================
+# 화면 탭 구성
 tab_search, tab_upload, tab_manage = st.tabs(["🔍 사진 검색", "☁️ 사진 업로드", "🗑️ 갤러리 관리"])
 
-# ------------------------------------------
 # [탭 1] 검색 기능
-# ------------------------------------------
+
 with tab_search:
     st.subheader("머릿속에 있는 사진을 텍스트로 찾아보세요")
     query = st.text_input("검색어 입력 (예: 강아지 사진, 영수증, 바다)", key="search_input")
@@ -103,9 +96,9 @@ with tab_search:
             except Exception as e:
                 st.error(f"❌ 검색 중 에러 발생: {e}")
 
-# ------------------------------------------
-# [탭 2] 업로드 기능 (🌟 다중 업로드 지원)
-# ------------------------------------------
+
+# [탭 2] 업로드 기능
+
 with tab_upload:
     st.subheader("새로운 사진들을 클라우드에 한 번에 업로드합니다")
     
@@ -185,9 +178,7 @@ with tab_upload:
             
             st.success(f"✅ 총 {success_count}장의 사진이 성공적으로 클라우드에 저장되었습니다!")
 
-# ------------------------------------------
 # [탭 3] 관리 및 삭제 기능
-# ------------------------------------------
 with tab_manage:
     st.subheader("🗑️ 클라우드에 저장된 갤러리 관리")
     
