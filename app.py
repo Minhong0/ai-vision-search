@@ -84,7 +84,7 @@ with tab_search:
                 # 원상복구된 순수 형태 검색 함수 호출
                 response = supabase.rpc("match_images", {
                     "query_embedding": query_vector,
-                    "match_threshold": 0.20,  
+                    "match_threshold": 0.23,  
                     "match_count": 15 
                 }).execute()
                 
