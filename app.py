@@ -34,7 +34,7 @@ with st.spinner('AI 엔진과 클라우드를 연결하는 중입니다...'):
 
 # 화면 탭 구성
 tab_search, tab_upload, tab_manage = st.tabs(["🔍 사진 검색", "☁️ 사진 업로드", "🗑️ 갤러리 관리"])
--
+
 # [탭 1] 사진 겁색
 with tab_search:
     st.subheader("머릿속에 있는 사진을 텍스트로 찾아보세요")
