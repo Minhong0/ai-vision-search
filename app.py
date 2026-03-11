@@ -2,22 +2,19 @@ import streamlit as st
 import torch
 import os
 import uuid
-import requests  # 🌟 [추가됨] 클라우드 이미지를 다운로드하기 위한 통신 라이브러리
+import requests
 from PIL import Image
 from transformers import CLIPProcessor, CLIPModel
 from supabase import create_client, Client
 from deep_translator import GoogleTranslator
 
-# ==========================================
-# 1. 기본 웹 설정
-# ==========================================
-st.set_page_config(page_title="클라우드 AI 갤러리", page_icon="☁️", layout="wide")
-st.title("☁️ 멀티모달 AI 클라우드 갤러리")
-st.markdown("한국어 자연어로 클라우드에 저장된 사진을 검색하고 다운로드해 보세요.")
 
-# ==========================================
-# 2. AI 모델 및 DB 연결
-# ==========================================
+# 기본 웹 설정
+st.set_page_config(page_title="인제 클라우드 갤러리", page_icon="☁️", layout="wide")
+st.title("☁️ 인제 클라우드 갤러리")
+st.markdown("클라우드에 저장된 사진을 검색하고 다운로드해 보세요.")
+
+# AI 모델 및 DB 연결
 @st.cache_resource
 def load_system():
     url = st.secrets["SUPABASE_URL"]
@@ -35,14 +32,10 @@ def load_system():
 with st.spinner('AI 엔진과 클라우드를 연결하는 중입니다...'):
     supabase, model, processor, device = load_system()
 
-# ==========================================
-# 3. 화면 탭 구성
-# ==========================================
+# 화면 탭 구성
 tab_search, tab_upload, tab_manage = st.tabs(["🔍 사진 검색", "☁️ 사진 업로드", "🗑️ 갤러리 관리"])
-
-# ------------------------------------------
-# [탭 1] 검색 기능 (다운로드 추가)
-# ------------------------------------------
+-
+# [탭 1] 사진 겁색
 with tab_search:
     st.subheader("머릿속에 있는 사진을 텍스트로 찾아보세요")
     query = st.text_input("검색어 입력 (예: 강아지 사진, 영수증, 바다)", key="search_input")
@@ -104,9 +97,7 @@ with tab_search:
             except Exception as e:
                 st.error(f"❌ 검색 중 에러 발생: {e}")
 
-# ------------------------------------------
-# [탭 2] 업로드 기능
-# ------------------------------------------
+# [탭 2] 업로드
 with tab_upload:
     st.subheader("새로운 사진을 클라우드에 업로드합니다")
     uploaded_file = st.file_uploader("이미지 파일 선택", type=['png', 'jpg', 'jpeg'])
@@ -156,13 +147,11 @@ with tab_upload:
                     }
                     supabase.table("image_embeddings").insert(insert_data).execute()
                     
-                    st.success("✅ 클라우드 저장 완료! 이제 한글 이름으로도 완벽하게 관리됩니다.")
+                    st.success("✅ 클라우드 저장 완료!")
                 except Exception as e:
                     st.error(f"❌ 처리 중 에러 발생: {e}")
 
-# ------------------------------------------
-# [탭 3] 관리 및 삭제 기능 (다운로드 추가)
-# ------------------------------------------
+# [탭 3] 관리 및 삭제 기능
 with tab_manage:
     st.subheader("🗑️ 클라우드에 저장된 갤러리 관리")
     
@@ -178,7 +167,6 @@ with tab_manage:
             st.write(f"총 **{len(records)}**장의 사진이 저장되어 있습니다.")
             
             for record in records:
-                # 🌟 다운로드 버튼과 삭제 버튼을 나란히 배치하기 위해 열(Column) 비율을 조절
                 col1, col2, col3, col4 = st.columns([1, 2, 1, 1])
                 
                 with col1:
@@ -186,7 +174,6 @@ with tab_manage:
                 with col2:
                     st.write(f"**파일명:** {record['file_name']}")
                 with col3:
-                    # 🌟 [다운로드 기능 추가]
                     try:
                         img_data = requests.get(record['file_path']).content
                         st.download_button(
