@@ -3,3 +3,4 @@ torch
 pillow
 transformers
 supabase
+deep-translator
