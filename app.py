@@ -113,7 +113,7 @@ with tab_upload:
         if st.button("🚀 AI 분석 및 DB 저장"):
             with st.spinner("AI가 이미지를 분석하고 있습니다..."):
                 try:
-                    # 1. 업로드된 파일을 로컬 폴더에 먼저 임시 저장 (웹 화면에 띄우기 위함)
+                    # 1. 업로드된 파일을 로컬 폴더에 먼저 임시 저장
                     save_dir = "demo_images"
                     if not os.path.exists(save_dir):
                         os.makedirs(save_dir)
@@ -129,11 +129,18 @@ with tab_upload:
                     with torch.no_grad():
                         img_features = model.get_image_features(**inputs)
                     
-                    # 방어 코드 (1차원 평탄화)
+                    # [철벽 방어 코드] 어떤 형태든 무조건 핵심 벡터(512개) 1개만 정밀하게 뽑아내기
                     if isinstance(img_features, torch.Tensor):
-                        vector_list = img_features.flatten().cpu().numpy().tolist()
+                        vector_list = img_features[0].cpu().numpy().tolist()
+                    elif hasattr(img_features, 'image_embeds'):
+                        vector_list = img_features.image_embeds[0].cpu().numpy().tolist()
                     else:
-                        vector_list = img_features[0].flatten().cpu().numpy().tolist()
+                        vector_list = list(img_features[0].flatten().cpu().numpy())[:512]
+                    
+                    # 💡 DB에 넣기 전 마지막 검문소
+                    if len(vector_list) != 512:
+                        st.error(f"❌ 데이터 크기 오류! (현재 크기: {len(vector_list)})")
+                        st.stop()
                     
                     # 3. Supabase DB에 Insert
                     insert_data = {
