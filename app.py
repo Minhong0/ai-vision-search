@@ -241,4 +241,24 @@ with tab_manage:
                     st.caption(f"💾 {file_size}KB | 📅 {created_date}")
                 with col3:
                     try:
-                        img_
+                        img_data = requests.get(record['file_path']).content
+                        st.download_button(
+                            label="⬇️ 다운로드",
+                            data=img_data,
+                            file_name=record['file_name'],
+                            mime="image/jpeg",
+                            key=f"dl_manage_{record['id']}" 
+                        )
+                    except:
+                        st.write("다운로드 불가")
+                with col4:
+                    if st.button("❌ 삭제", key=f"del_{record['id']}"):
+                        with st.spinner("삭제 중..."):
+                            storage_filename = record['file_path'].split('/')[-1]
+                            supabase.storage.from_("images").remove([storage_filename])
+                            supabase.table("image_embeddings").delete().eq("id", record['id']).execute()
+                            
+                            st.success("삭제되었습니다!")
+                            st.rerun()
+    except Exception as e:
+        st.error(f"목록을 불러오는 중 에러가 발생했습니다: {e}")
