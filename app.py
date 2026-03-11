@@ -81,14 +81,14 @@ with tab_search:
                                 st.image(result['file_path'], use_container_width=True)
                                 st.caption(f"이름: {result['file_name']} | 유사도: {result['similarity']:.4f}")
                                 
-                                # 🌟 [다운로드 기능 추가] 클라우드 URL에서 이미지를 읽어와서 버튼으로 제공
+                                # 클라우드 URL에서 이미지를 읽어와서 버튼으로 제공
                                 img_data = requests.get(result['file_path']).content
                                 st.download_button(
                                     label="⬇️ 다운로드",
                                     data=img_data,
-                                    file_name=result['file_name'], # 저장될 때 원래 한글 이름으로 저장됨!
+                                    file_name=result['file_name'], # 저장될 때 원래 한글 이름으로 저장
                                     mime="image/jpeg",
-                                    key=f"dl_search_{idx}_{result['file_name']}" # 버튼끼리 안 겹치게 고유 키 부여
+                                    key=f"dl_search_{idx}_{result['file_name']}"
                                 )
                             except Exception as e:
                                 st.error(f"이미지 로드 실패")
