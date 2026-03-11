@@ -7,7 +7,7 @@ from transformers import CLIPProcessor, CLIPModel
 from supabase import create_client, Client
 
 # ==========================================
-# 1. 기본 웹 설정 및 로딩 화면
+# 1. 기본 웹 설정
 # ==========================================
 st.set_page_config(page_title="클라우드 AI 갤러리", page_icon="☁️", layout="wide")
 st.title("☁️ 멀티모달 AI 클라우드 갤러리")
@@ -65,7 +65,6 @@ with tab_search:
                     text_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
                     query_vector = text_tensor.flatten().cpu().tolist()[:512]
                 
-                # 2. Supabase DB 검색
                 response = supabase.rpc("match_images", {
                     "query_embedding": query_vector,
                     "match_threshold": 0.1,  
@@ -74,18 +73,16 @@ with tab_search:
                 
                 results = response.data
                 
-                # 3. 검색 결과 클라우드 URL로 출력
                 if results and len(results) > 0:
                     st.success(f"🎉 총 {len(results)}장의 관련 사진을 찾았습니다!")
                     
-                    # 💡 검색 탭의 출력 코드 수정
                     cols = st.columns(3)
                     for idx, result in enumerate(results):
                         with cols[idx % 3]:
                             try:
-                                # 클라우드 URL(file_path)을 그대로 사용
                                 st.image(result['file_path'], use_container_width=True)
-                                st.caption(f"유사도: {result['similarity']:.4f}")
+                                # DB에 저장된 예쁜 '원래 이름(한글)'을 출력합니다!
+                                st.caption(f"이름: {result['file_name']} | 유사도: {result['similarity']:.4f}")
                             except Exception as e:
                                 st.error(f"이미지 로드 실패")
                 else:
@@ -106,21 +103,22 @@ with tab_upload:
         if st.button("🚀 클라우드 업로드 및 AI 분석"):
             with st.spinner("AI 분석 및 클라우드 저장 중..."):
                 try:
-                    # 🌟 [핵심 변경 사항] 한글/공백 에러 방지를 위해 파일명을 완전한 랜덤 영문+숫자로 바꿈
-                    ext = os.path.splitext(uploaded_file.name)[1] # 확장자 추출 (예: .jpg)
-                    unique_filename = f"{uuid.uuid4().hex}{ext}"  # 예: 3f9a2b... .jpg
+                    # 🌟 [한글 파일명 해결 로직]
+                    original_filename = uploaded_file.name # 본명 (예: 귀여운 강아지.jpg)
+                    ext = os.path.splitext(original_filename)[1]
+                    safe_filename = f"{uuid.uuid4().hex}{ext}" # 가명 (예: a1b2c3.jpg)
                     
                     file_bytes = uploaded_file.getvalue()
                     
-                    # 1. Supabase Storage 업로드
+                    # 1. 클라우드에는 안전한 '가명'으로 업로드!
                     supabase.storage.from_("images").upload(
-                        path=unique_filename, 
+                        path=safe_filename, 
                         file=file_bytes, 
                         file_options={"content-type": uploaded_file.type}
                     )
                     
                     # 2. Public URL 가져오기
-                    public_url = supabase.storage.from_("images").get_public_url(unique_filename)
+                    public_url = supabase.storage.from_("images").get_public_url(safe_filename)
                     
                     # 3. AI 분석
                     img = Image.open(uploaded_file).convert("RGB")
@@ -141,15 +139,15 @@ with tab_upload:
                         img_tensor = img_tensor / img_tensor.norm(p=2, dim=-1, keepdim=True)
                         vector_list = img_tensor.flatten().cpu().tolist()[:512]
                     
-                    # 4. DB 장부 기록 (저장할 때 파일명은 고유한 영문 이름으로, 경로는 public_url로 저장)
+                    # 4. DB 장부에는 우리가 볼 수 있게 '본명(한글)'으로 기록!
                     insert_data = {
-                        "file_name": unique_filename,
+                        "file_name": original_filename, 
                         "file_path": public_url, 
                         "embedding": vector_list
                     }
                     supabase.table("image_embeddings").insert(insert_data).execute()
                     
-                    st.success("✅ 클라우드 저장 완료! 이제 어디서든 검색할 수 있습니다.")
+                    st.success("✅ 클라우드 저장 완료! 이제 한글 이름으로도 완벽하게 관리됩니다.")
                 except Exception as e:
                     st.error(f"❌ 처리 중 에러 발생: {e}")
 
@@ -163,7 +161,6 @@ with tab_manage:
         st.rerun()
 
     try:
-        # DB에서 저장된 모든 사진 목록 불러오기 (검색과 마찬가지로 file_path를 활용)
         records = supabase.table("image_embeddings").select("file_name", "file_path").execute().data
         
         if not records:
@@ -174,16 +171,17 @@ with tab_manage:
             for record in records:
                 col1, col2, col3 = st.columns([1, 3, 1])
                 with col1:
-                    # 클라우드 URL을 직접 가져와서 보여줌
                     st.image(record['file_path'], width=100)
                 with col2:
-                    st.write(f"**파일명:** {record['file_name']}")
+                    st.write(f"**파일명:** {record['file_name']}") # 예쁜 한글 이름 출력
                 with col3:
                     if st.button("❌ 삭제", key=f"del_{record['file_name']}"):
                         with st.spinner("삭제 중..."):
-                            # Storage 버킷에서 파일 삭제
-                            supabase.storage.from_("images").remove([record['file_name']])
-                            # DB에서 데이터 삭제
+                            # 🌟 [삭제 해결 로직] URL에서 '가명(안전한 이름)'을 추출해서 클라우드에서 지움!
+                            storage_filename = record['file_path'].split('/')[-1]
+                            supabase.storage.from_("images").remove([storage_filename])
+                            
+                            # DB에서는 '본명(한글 이름)'을 기준으로 장부 기록을 지움!
                             supabase.table("image_embeddings").delete().eq("file_name", record['file_name']).execute()
                             
                             st.success("삭제되었습니다!")
