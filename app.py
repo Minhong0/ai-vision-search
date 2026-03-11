@@ -61,6 +61,8 @@ with tab_search:
                     query_vector = text_features.text_embeds[0].cpu().numpy().tolist()
                 else:
                     query_vector = list(text_features[0].flatten().cpu().numpy())[:512]
+
+                query_vector = [float(x) for x in query_vector]
                 
                 # 2. Supabase DB에서 유사도 검색
                 response = supabase.rpc("match_images", {
@@ -130,6 +132,7 @@ with tab_upload:
                     if len(vector_list) != 512:
                         st.error(f"❌ 데이터 크기 오류! (현재 크기: {len(vector_list)}). 512차원이어야 합니다.")
                         st.stop()
+                    vector_list = [float(x) for x in vector_list]
                     
                     # 3. Supabase DB에 Insert
                     insert_data = {
