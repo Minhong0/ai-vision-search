@@ -57,7 +57,7 @@ with tab_search:
 
         with st.spinner('AI가 사진을 찾는 중...'):
             try:
-                st.info(f"💡 검색 진행 중: **'{query}'** (🇰🇷 한국어 원어민 AI 가동 중)")
+                st.info(f"💡 검색 진행 중: **'{query}'**")
                 
                 inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
                 
