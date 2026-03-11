@@ -8,13 +8,16 @@ from transformers import CLIPProcessor, CLIPModel
 from supabase import create_client, Client
 from deep_translator import GoogleTranslator
 
+# ==========================================
+# 1. 기본 웹 설정
+# ==========================================
+st.set_page_config(page_title="클라우드 AI 갤러리", page_icon="☁️", layout="wide")
+st.title("☁️ 멀티모달 AI 클라우드 갤러리")
+st.markdown("한국어 자연어로 클라우드에 저장된 사진을 검색하고 다운로드해 보세요.")
 
-# 기본 웹 설정
-st.set_page_config(page_title="인제 클라우드 갤러리", page_icon="☁️", layout="wide")
-st.title("☁️ 인제 클라우드 갤러리")
-st.markdown("클라우드에 저장된 사진을 검색하고 다운로드해 보세요.")
-
-# AI 모델 및 DB 연결
+# ==========================================
+# 2. AI 모델 및 DB 연결
+# ==========================================
 @st.cache_resource
 def load_system():
     url = st.secrets["SUPABASE_URL"]
@@ -32,10 +35,14 @@ def load_system():
 with st.spinner('AI 엔진과 클라우드를 연결하는 중입니다...'):
     supabase, model, processor, device = load_system()
 
-# 화면 탭 구성
+# ==========================================
+# 3. 화면 탭 구성
+# ==========================================
 tab_search, tab_upload, tab_manage = st.tabs(["🔍 사진 검색", "☁️ 사진 업로드", "🗑️ 갤러리 관리"])
 
-# [탭 1] 사진 겁색
+# ------------------------------------------
+# [탭 1] 검색 기능
+# ------------------------------------------
 with tab_search:
     st.subheader("머릿속에 있는 사진을 텍스트로 찾아보세요")
     query = st.text_input("검색어 입력 (예: 강아지 사진, 영수증, 바다)", key="search_input")
@@ -65,7 +72,7 @@ with tab_search:
                 
                 response = supabase.rpc("match_images", {
                     "query_embedding": query_vector,
-                    "match_threshold": 0.21,  
+                    "match_threshold": 0.1,  
                     "match_count": 3
                 }).execute()
                 
@@ -81,12 +88,11 @@ with tab_search:
                                 st.image(result['file_path'], use_container_width=True)
                                 st.caption(f"이름: {result['file_name']} | 유사도: {result['similarity']:.4f}")
                                 
-                                # 클라우드 URL에서 이미지를 읽어와서 버튼으로 제공
                                 img_data = requests.get(result['file_path']).content
                                 st.download_button(
                                     label="⬇️ 다운로드",
                                     data=img_data,
-                                    file_name=result['file_name'], # 저장될 때 원래 한글 이름으로 저장
+                                    file_name=result['file_name'],
                                     mime="image/jpeg",
                                     key=f"dl_search_{idx}_{result['file_name']}"
                                 )
@@ -97,16 +103,37 @@ with tab_search:
             except Exception as e:
                 st.error(f"❌ 검색 중 에러 발생: {e}")
 
-# [탭 2] 업로드
+# ------------------------------------------
+# [탭 2] 업로드 기능 (🌟 다중 업로드 지원)
+# ------------------------------------------
 with tab_upload:
-    st.subheader("새로운 사진을 클라우드에 업로드합니다")
-    uploaded_file = st.file_uploader("이미지 파일 선택", type=['png', 'jpg', 'jpeg'])
+    st.subheader("새로운 사진들을 클라우드에 한 번에 업로드합니다")
     
-    if uploaded_file is not None:
-        st.image(uploaded_file, width=300)
+    # 🌟 핵심: accept_multiple_files=True 옵션 추가
+    uploaded_files = st.file_uploader(
+        "이미지 파일 선택 (여러 장 드래그 앤 드롭 가능)", 
+        type=['png', 'jpg', 'jpeg'], 
+        accept_multiple_files=True
+    )
+    
+    if uploaded_files: # 파일이 1개라도 선택되었다면
+        st.write(f"총 **{len(uploaded_files)}**장의 사진이 선택되었습니다.")
         
-        if st.button("🚀 클라우드 업로드 및 AI 분석"):
-            with st.spinner("AI 분석 및 클라우드 저장 중..."):
+        # 선택된 사진들을 작게 미리보기 (5칸씩 나눠서 보여주기)
+        cols = st.columns(5)
+        for idx, file in enumerate(uploaded_files):
+            with cols[idx % 5]:
+                st.image(file, use_container_width=True)
+        
+        if st.button("🚀 일괄 클라우드 업로드 및 AI 분석"):
+            # 🌟 진행 상태를 보여주는 바(Bar) 생성
+            progress_text = "업로드 및 분석을 시작합니다..."
+            my_bar = st.progress(0, text=progress_text)
+            
+            success_count = 0
+            
+            # 선택된 파일들을 하나씩 꺼내서 반복 작업
+            for idx, uploaded_file in enumerate(uploaded_files):
                 try:
                     original_filename = uploaded_file.name
                     ext = os.path.splitext(original_filename)[1]
@@ -147,11 +174,20 @@ with tab_upload:
                     }
                     supabase.table("image_embeddings").insert(insert_data).execute()
                     
-                    st.success("✅ 클라우드 저장 완료!")
+                    success_count += 1
+                    
                 except Exception as e:
-                    st.error(f"❌ 처리 중 에러 발생: {e}")
+                    st.error(f"❌ '{uploaded_file.name}' 처리 중 에러: {e}")
+                
+                # 🌟 사진 하나 처리할 때마다 프로그레스 바 게이지 채우기
+                progress_percent = int(((idx + 1) / len(uploaded_files)) * 100)
+                my_bar.progress(progress_percent, text=f"진행 중... ({idx+1}/{len(uploaded_files)} 장 완료)")
+            
+            st.success(f"✅ 총 {success_count}장의 사진이 성공적으로 클라우드에 저장되었습니다!")
 
+# ------------------------------------------
 # [탭 3] 관리 및 삭제 기능
+# ------------------------------------------
 with tab_manage:
     st.subheader("🗑️ 클라우드에 저장된 갤러리 관리")
     
