@@ -5,14 +5,16 @@ import uuid
 import requests
 import time
 from PIL import Image
-from transformers import CLIPProcessor, CLIPModel
+# [수정됨] CLIPModel 대신 AutoModel을 사용하여 모델 충돌(norm 에러) 방지
+from transformers import AutoProcessor, AutoModel
 from supabase import create_client, Client
 
+# ==========================================
 # 1. 기본 웹 설정 및 세션 기억력 초기화
-
+# ==========================================
 st.set_page_config(page_title="한국어 AI 클라우드 갤러리", page_icon="🇰🇷", layout="wide")
-st.title("AI 클라우드 갤러리)")
-st.markdown("사진을 검색해 보세요.")
+st.title("☁️ 방위/제조 특화 AI 클라우드 갤러리")
+st.markdown("파일명이 아닌 **'자연어(의미)'**와 **'메타데이터(날짜/용량)'**를 결합하여 검색해 보세요.")
 
 if "display_count" not in st.session_state:
     st.session_state.display_count = 3
@@ -21,8 +23,9 @@ if "last_query" not in st.session_state:
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = str(uuid.uuid4())
 
+# ==========================================
 # 2. AI 모델 및 DB 연결
-
+# ==========================================
 @st.cache_resource
 def load_system():
     url = st.secrets["SUPABASE_URL"]
@@ -30,40 +33,76 @@ def load_system():
     sb = create_client(url, key)
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    # 순정 한국어 특화 모델
     model_id = "Bingsu/clip-vit-base-patch32-ko"
     
-    model = CLIPModel.from_pretrained(model_id, use_safetensors=True).to(device)
-    processor = CLIPProcessor.from_pretrained(model_id)
+    # [수정됨] AutoModel 적용
+    model = AutoModel.from_pretrained(model_id, use_safetensors=True).to(device)
+    processor = AutoProcessor.from_pretrained(model_id)
     
     return sb, model, processor, device
 
 with st.spinner('AI 엔진을 깨우는 중입니다...'):
     supabase, model, processor, device = load_system()
 
-
+# ==========================================
 # 3. 화면 탭 구성
+# ==========================================
+tab_search, tab_upload, tab_manage = st.tabs(["🔍 지능형 검색", "☁️ 사진 대량 업로드", "🗑️ 갤러리 관리"])
 
-tab_search, tab_upload, tab_manage = st.tabs(["🔍 사진 검색", "☁️ 사진 업로드", "🗑️ 갤러리 관리"])
-
-
-# [탭 1] 검색 기능
-
+# ------------------------------------------
+# [탭 1] 검색 기능 (하이브리드 필터 적용)
+# ------------------------------------------
 with tab_search:
     st.subheader("머릿속에 있는 사진을 텍스트로 찾아보세요")
-    query = st.text_input("검색어 입력 (예: 강아지 사진, 영수증, 바다)", key="search_input")
+    
+    # 메인 검색창
+    query = st.text_input("검색어 입력 (예: 안전모 쓴 작업자, 영수증, 바다)", key="search_input")
+    
+    # [추가됨] 하이브리드 검색을 위한 상세 필터 UI (Expander 활용)
+    with st.expander("⚙️ 상세 필터 설정 (날짜/용량 하이브리드 검색)"):
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            use_date_filter = st.checkbox("📅 업로드 날짜 필터 사용")
+            if use_date_filter:
+                date_range = st.date_input("검색할 기간을 선택하세요", value=[], key="date_filter")
+            else:
+                date_range = []
+                
+        with col2:
+            use_size_filter = st.checkbox("💾 파일 용량 필터 사용")
+            min_size_mb = st.number_input(
+                "최소 용량 (MB)", 
+                min_value=0.0, max_value=100.0, value=1.0, step=0.5, 
+                disabled=not use_size_filter
+            )
+            
+        with col3:
+            st.markdown("**[AI 연산 설정]**")
+            match_threshold = st.slider("유사도 커트라인 (오탐지 방지)", 0.0, 0.5, 0.23, 0.01)
+            match_count = st.number_input("최대 출력 개수", min_value=1, max_value=50, value=15)
     
     if query:
         if query != st.session_state.last_query:
             st.session_state.display_count = 3
             st.session_state.last_query = query
 
-        with st.spinner('AI가 사진을 찾는 중...'):
+        with st.spinner('AI와 DB가 데이터를 분석하여 교차 검색 중입니다...'):
             try:
-                st.info(f"💡 검색 진행 중: **'{query}'**")
-                
+                # [추가됨] 필터 변수 정리 (SQL RPC 함수에 던져줄 데이터 가공)
+                start_date = None
+                end_date = None
+                if use_date_filter and len(date_range) == 2:
+                    start_date = date_range[0].strftime("%Y-%m-%d")
+                    end_date = date_range[1].strftime("%Y-%m-%d")
+                elif use_date_filter and len(date_range) == 1:
+                    start_date = date_range[0].strftime("%Y-%m-%d")
+                    end_date = date_range[0].strftime("%Y-%m-%d")
+
+                min_size_kb = int(min_size_mb * 1024) if use_size_filter else None
+
+                # AI 벡터 추출
                 inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
-                
                 with torch.no_grad():
                     text_outputs = model.get_text_features(**inputs)
                     
@@ -79,18 +118,21 @@ with tab_search:
                     text_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
                     query_vector = text_tensor.flatten().cpu().tolist()[:512]
                 
-                # 원상복구된 순수 형태 검색 함수 호출
+                # [수정됨] 하이브리드 필터 변수를 모두 포함하여 RPC 호출
                 response = supabase.rpc("match_images", {
                     "query_embedding": query_vector,
-                    "match_threshold": 0.23,  
-                    "match_count": 15 
+                    "match_threshold": match_threshold,
+                    "match_count": match_count,
+                    "filter_start_date": start_date,
+                    "filter_end_date": end_date,
+                    "filter_min_size_kb": min_size_kb
                 }).execute()
                 
                 results = response.data
                 
+                # 결과 출력
                 if results and len(results) > 0:
-                    st.success(f"🎉 총 {len(results)}장의 관련 사진을 찾았습니다!")
-                    
+                    st.success(f"🎉 필터 조건에 맞는 총 {len(results)}장의 사진을 찾았습니다!")
                     displayed_results = results[:st.session_state.display_count]
                     
                     cols = st.columns(3)
@@ -122,11 +164,13 @@ with tab_search:
                             st.session_state.display_count += 3
                             st.rerun()
                 else:
-                    st.warning("⚠️ 비슷한 사진을 찾지 못했습니다. 검색어를 바꿔보세요!")
+                    st.warning("⚠️ 필터 조건이나 검색어에 맞는 사진이 없습니다. 필터를 해제하거나 검색어를 바꿔보세요!")
             except Exception as e:
                 st.error(f"❌ 검색 중 에러 발생: {e}")
 
+# ------------------------------------------
 # [탭 2] 업로드 기능
+# ------------------------------------------
 with tab_upload:
     st.subheader("새로운 사진들을 클라우드에 한 번에 업로드합니다")
     
@@ -207,8 +251,9 @@ with tab_upload:
             st.session_state.uploader_key = str(uuid.uuid4())
             st.rerun()
 
+# ------------------------------------------
 # [탭 3] 관리 및 삭제 기능
-
+# ------------------------------------------
 with tab_manage:
     st.subheader("🗑️ 클라우드에 저장된 갤러리 관리")
     
