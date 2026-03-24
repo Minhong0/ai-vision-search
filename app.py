@@ -4,8 +4,8 @@ import os
 import uuid
 import requests
 import time
+import datetime  # 날짜 계산을 위해 추가
 from PIL import Image
-# [수정됨] CLIPModel 대신 AutoModel을 사용하여 모델 충돌(norm 에러) 방지
 from transformers import AutoProcessor, AutoModel
 from supabase import create_client, Client
 
@@ -35,7 +35,6 @@ def load_system():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model_id = "Bingsu/clip-vit-base-patch32-ko"
     
-    # [수정됨] AutoModel 적용
     model = AutoModel.from_pretrained(model_id, use_safetensors=True).to(device)
     processor = AutoProcessor.from_pretrained(model_id)
     
@@ -58,29 +57,41 @@ with tab_search:
     # 메인 검색창
     query = st.text_input("검색어 입력 (예: 안전모 쓴 작업자, 영수증, 바다)", key="search_input")
     
-    # [추가됨] 하이브리드 검색을 위한 상세 필터 UI (Expander 활용)
-    with st.expander("⚙️ 상세 필터 설정 (날짜/용량 하이브리드 검색)"):
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            use_date_filter = st.checkbox("📅 업로드 날짜 필터 사용")
-            if use_date_filter:
-                date_range = st.date_input("검색할 기간을 선택하세요", value=[], key="date_filter")
-            else:
-                date_range = []
-                
-        with col2:
-            use_size_filter = st.checkbox("💾 파일 용량 필터 사용")
+    st.markdown("---")
+    st.markdown("#### ⚙️ 상세 필터 설정 (선택사항)")
+    
+    # 토글(Expander)을 없애고 화면에 바로 노출
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        use_date_filter = st.checkbox("📅 업로드 날짜 필터 사용")
+        if use_date_filter:
+            d_col1, d_col2 = st.columns(2)
+            with d_col1:
+                start_date = st.date_input("시작일", datetime.date.today() - datetime.timedelta(days=30))
+            with d_col2:
+                end_date = st.date_input("종료일", datetime.date.today())
+        else:
+            start_date = None
+            end_date = None
+            
+    with col2:
+        use_size_filter = st.checkbox("💾 파일 용량 필터 사용")
+        if use_size_filter:
             min_size_mb = st.number_input(
                 "최소 용량 (MB)", 
-                min_value=0.0, max_value=100.0, value=1.0, step=0.5, 
-                disabled=not use_size_filter
+                min_value=0.0, max_value=100.0, value=1.0, step=0.5
             )
+            min_size_kb = int(min_size_mb * 1024)
+        else:
+            min_size_kb = None
             
-        with col3:
-            st.markdown("**[AI 연산 설정]**")
-            match_threshold = st.slider("유사도 커트라인 (오탐지 방지)", 0.0, 0.5, 0.23, 0.01)
-            match_count = st.number_input("최대 출력 개수", min_value=1, max_value=50, value=15)
+    with col3:
+        st.markdown("**[AI 연산 설정]**")
+        match_threshold = st.slider("유사도 커트라인 (오탐지 방지)", 0.0, 0.5, 0.23, 0.01)
+        match_count = st.number_input("최대 출력 개수", min_value=1, max_value=50, value=15)
+        
+    st.markdown("---")
     
     if query:
         if query != st.session_state.last_query:
@@ -89,17 +100,9 @@ with tab_search:
 
         with st.spinner('AI와 DB가 데이터를 분석하여 교차 검색 중입니다...'):
             try:
-                # [추가됨] 필터 변수 정리 (SQL RPC 함수에 던져줄 데이터 가공)
-                start_date = None
-                end_date = None
-                if use_date_filter and len(date_range) == 2:
-                    start_date = date_range[0].strftime("%Y-%m-%d")
-                    end_date = date_range[1].strftime("%Y-%m-%d")
-                elif use_date_filter and len(date_range) == 1:
-                    start_date = date_range[0].strftime("%Y-%m-%d")
-                    end_date = date_range[0].strftime("%Y-%m-%d")
-
-                min_size_kb = int(min_size_mb * 1024) if use_size_filter else None
+                # DB로 넘길 필터 변수 정리
+                start_date_str = start_date.strftime("%Y-%m-%d") if start_date else None
+                end_date_str = end_date.strftime("%Y-%m-%d") if end_date else None
 
                 # AI 벡터 추출
                 inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
@@ -118,13 +121,13 @@ with tab_search:
                     text_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
                     query_vector = text_tensor.flatten().cpu().tolist()[:512]
                 
-                # [수정됨] 하이브리드 필터 변수를 모두 포함하여 RPC 호출
+                # DB 하이브리드 검색 호출
                 response = supabase.rpc("match_images", {
                     "query_embedding": query_vector,
                     "match_threshold": match_threshold,
                     "match_count": match_count,
-                    "filter_start_date": start_date,
-                    "filter_end_date": end_date,
+                    "filter_start_date": start_date_str,
+                    "filter_end_date": end_date_str,
                     "filter_min_size_kb": min_size_kb
                 }).execute()
                 
@@ -141,7 +144,9 @@ with tab_search:
                             try:
                                 st.image(result['file_path'], use_container_width=True)
                                 
-                                file_size = result.get('file_size_kb', 0) or 0
+                                # 화면 표기용 데이터 정제
+                                raw_size = result.get('file_size_kb')
+                                file_size = int(raw_size) if raw_size is not None else 0
                                 created_date = result.get('created_at', '알 수 없음')[:10] if result.get('created_at') else '최근'
                                 
                                 st.markdown(f"**{result['file_name']}**")
@@ -274,7 +279,8 @@ with tab_manage:
                 with col1:
                     st.image(record['file_path'], width=100)
                 with col2:
-                    file_size = record.get('file_size_kb', 0) or 0
+                    raw_size = record.get('file_size_kb')
+                    file_size = int(raw_size) if raw_size is not None else 0
                     created_date = record.get('created_at', '알 수 없음')[:10] if record.get('created_at') else '기존 데이터'
                     
                     st.write(f"**{record['file_name']}**")
