@@ -12,9 +12,9 @@ from supabase import create_client, Client
 # ==========================================
 # 1. 기본 웹 설정 및 세션 기억력 초기화
 # ==========================================
-st.set_page_config(page_title="한국어 AI 클라우드 갤러리", page_icon="🇰🇷", layout="wide")
-st.title("☁️ 방위/제조 특화 AI 클라우드 갤러리")
-st.markdown("파일명이 아닌 **'자연어(의미)'**와 **'메타데이터(날짜/용량)'**를 결합하여 검색해 보세요.")
+st.set_page_config(page_title="인제 클라우드 갤러리", page_icon="🇰🇷", layout="wide")
+st.title("☁️인제 클라우드 갤러리")
+st.markdown("사진을 검색 해보세요.")
 
 if "display_count" not in st.session_state:
     st.session_state.display_count = 3
@@ -250,8 +250,7 @@ with tab_upload:
                 progress_percent = int(((idx + 1) / len(uploaded_files)) * 100)
                 my_bar.progress(progress_percent, text=f"진행 중... ({idx+1}/{len(uploaded_files)} 장 완료)")
             
-            st.success(f"✅ 총 {success_count}장의 사진이 성공적으로 저장되었습니다! 화면이 새로고침됩니다.")
-            time.sleep(1.5)
+            st.success(f"✅ 총 {success_count}장의 사진이 성공적으로 저장되었습니다!")
             
             st.session_state.uploader_key = str(uuid.uuid4())
             st.rerun()
