@@ -103,11 +103,21 @@ with tab_search:
                 start_date_str = start_date.strftime("%Y-%m-%d") if start_date else None
                 end_date_str = end_date.strftime("%Y-%m-%d") if end_date else None
 
-                # 1. 기본 AI 텍스트 벡터 추출
+                # 1. 기본 AI 텍스트 벡터 추출 (✨ 에러 수정된 부분)
                 inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
                 with torch.no_grad():
                     text_outputs = model.get_text_features(**inputs)
-                    text_tensor = text_outputs[0] if isinstance(text_outputs, tuple) else text_outputs
+                    
+                    # 원래 사용하시던 안전한 추출 코드로 복구
+                    if isinstance(text_outputs, torch.Tensor):
+                        text_tensor = text_outputs
+                    elif hasattr(text_outputs, 'text_embeds'):
+                        text_tensor = text_outputs.text_embeds
+                    elif hasattr(text_outputs, 'pooler_output'):
+                        text_tensor = text_outputs.pooler_output
+                    else:
+                        text_tensor = text_outputs[0]
+                    
                     text_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
 
                 # 👇👇👇 [핵심] 사용자 주도 학습(파인튜닝) 반영 로직 👇👇👇
@@ -124,7 +134,6 @@ with tab_search:
                     learned_tensor = learned_tensor / learned_tensor.norm(p=2, dim=-1, keepdim=True)
 
                     # 기존 AI 지식(텍스트) 40% + 사용자가 가르쳐준 지식(사진들) 60% 혼합
-                    # (비율은 원하시는 대로 0.4, 0.6 등으로 조절 가능)
                     final_tensor = (text_tensor * 0.4) + (learned_tensor * 0.6)
                     final_tensor = final_tensor / final_tensor.norm(p=2, dim=-1, keepdim=True)
                 else:
@@ -134,7 +143,7 @@ with tab_search:
 
                 query_vector = final_tensor.flatten().cpu().tolist()[:512]
 
-                # DB 검색 호출
+                # DB 하이브리드 검색 호출
                 response = supabase.rpc("match_images", {
                     "query_embedding": query_vector,
                     "match_threshold": match_threshold,
