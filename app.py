@@ -179,13 +179,7 @@ with tab_search:
 with tab_upload:
     st.subheader("새로운 사진들을 클라우드에 한 번에 업로드합니다")
     
-    st.markdown("#### 🏷️ 데이터 학습 태그 (선택사항)")
-    uploaded_tags = st.text_input(
-        "이 사진들의 특징이나 불량 종류를 입력해주세요 (예: 불량 부품, 스크래치, 모터결함)", 
-        placeholder="이곳에 태그를 적어두면 추후 AI 파인튜닝 시 정답 데이터로 활용됩니다!"
-    )
-    st.markdown("---")
-    
+    # 먼저 사진 업로드 창이 노출됩니다.
     uploaded_files = st.file_uploader(
         "이미지 파일 선택 (여러 장 드래그 앤 드롭 가능)", 
         type=['png', 'jpg', 'jpeg'], 
@@ -193,8 +187,17 @@ with tab_upload:
         key=st.session_state.uploader_key
     )
     
+    # 사진이 올라가면 그제서야 아래 로직(태그 입력, 사진 미리보기, 업로드 버튼)이 화면에 나타납니다.
     if uploaded_files:
         st.write(f"총 **{len(uploaded_files)}**장의 사진이 선택되었습니다.")
+        
+        # 👇👇👇 태그 입력란이 파일 업로드 조건문 안으로 들어왔습니다 👇👇👇
+        st.markdown("#### 🏷️ 데이터 학습 태그 (선택사항)")
+        uploaded_tags = st.text_input(
+            "이 사진들의 특징이나 불량 종류를 입력해주세요 (예: 불량 부품, 스크래치, 모터결함)", 
+            placeholder="이곳에 태그를 적어두면 추후 AI 파인튜닝 시 정답 데이터로 활용됩니다!"
+        )
+        st.markdown("---")
         
         cols = st.columns(5)
         for idx, file in enumerate(uploaded_files):
@@ -241,13 +244,12 @@ with tab_upload:
                         img_tensor = img_tensor / img_tensor.norm(p=2, dim=-1, keepdim=True)
                         vector_list = img_tensor.flatten().cpu().tolist()[:512]
                     
-                    # 👇👇👇 DB 저장 시 tags 내용도 함께 넘기도록 추가 👇👇👇
                     insert_data = {
                         "file_name": original_filename, 
                         "file_path": public_url,
                         "file_size_kb": file_size_kb, 
                         "embedding": vector_list,
-                        "tags": uploaded_tags  # 사용자 입력 태그 저장!
+                        "tags": uploaded_tags  # 사용자 입력 태그 저장
                     }
                     supabase.table("image_embeddings").insert(insert_data).execute()
                     
