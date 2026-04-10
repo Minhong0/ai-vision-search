@@ -13,20 +13,6 @@ from supabase import create_client, Client
 # 1. 기본 웹 설정 및 세션 기억력 초기화
 # ==========================================
 st.set_page_config(page_title="인제 클라우드 갤러리", page_icon="🇰🇷", layout="wide")
-
-# 화면 깜빡임/반투명화 방지 CSS
-st.markdown("""
-    <style>
-    /* 실행 중(업데이트 중) 화면이 투명해지는 현상 방지 */
-    [data-testid="stAppViewBlockContainer"], 
-    [data-testid="stVerticalBlock"], 
-    [data-testid="stHorizontalBlock"] {
-        opacity: 1 !important;
-        transition: none !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
 st.title("☁️인제 클라우드 갤러리")
 st.markdown("사진을 검색 해보세요.")
 
