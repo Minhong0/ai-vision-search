@@ -15,6 +15,16 @@ from supabase import create_client, Client
 st.set_page_config(page_title="인제 클라우드 갤러리", page_icon="🇰🇷", layout="wide")
 st.title("☁️인제 클라우드 갤러리")
 st.markdown("사진을 검색 해보세요.")
+st.markdown(
+    <style>
+    [data-testid="stAppViewBlockContainer"], 
+    [data-testid="stVerticalBlock"], 
+    [data-testid="stHorizontalBlock"] {
+        opacity: 1 !important;
+        transition: none !important;
+    }
+    </style>
+, unsafe_allow_html=True)
 
 if "display_count" not in st.session_state:
     st.session_state.display_count = 3
