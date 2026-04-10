@@ -98,30 +98,43 @@ with tab_search:
             st.session_state.display_count = 3
             st.session_state.last_query = query
 
-        with st.spinner('AI와 DB가 데이터를 분석하여 교차 검색 중입니다...'):
+    with st.spinner('AI가 사용자가 학습시킨 데이터를 바탕으로 교차 검색 중입니다...'):
             try:
-                # DB로 넘길 필터 변수 정리
                 start_date_str = start_date.strftime("%Y-%m-%d") if start_date else None
                 end_date_str = end_date.strftime("%Y-%m-%d") if end_date else None
 
-                # AI 벡터 추출
+                # 1. 기본 AI 텍스트 벡터 추출
                 inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
                 with torch.no_grad():
                     text_outputs = model.get_text_features(**inputs)
-                    
-                    if isinstance(text_outputs, torch.Tensor):
-                        text_tensor = text_outputs
-                    elif hasattr(text_outputs, 'text_embeds'):
-                        text_tensor = text_outputs.text_embeds
-                    elif hasattr(text_outputs, 'pooler_output'):
-                        text_tensor = text_outputs.pooler_output
-                    else:
-                        text_tensor = text_outputs[0]
-                    
+                    text_tensor = text_outputs[0] if isinstance(text_outputs, tuple) else text_outputs
                     text_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
-                    query_vector = text_tensor.flatten().cpu().tolist()[:512]
-                
-                # DB 하이브리드 검색 호출
+
+                # 👇👇👇 [핵심] 사용자 주도 학습(파인튜닝) 반영 로직 👇👇👇
+                # 검색어와 일치하는 태그를 가진 사진들이 DB에 있는지 확인
+                tag_response = supabase.table("image_embeddings").select("embedding").ilike("tags", f"%{query}%").execute()
+                tag_records = tag_response.data
+
+                if tag_records: # 사용자가 이 단어로 학습시킨 사진이 존재한다면!
+                    st.toast("사용자가 가르쳐준 특징을 검색에 반영합니다! 🧠", icon="✨")
+                    
+                    # 학습된 사진들의 벡터를 모아서 평균을 냄 (사용자 정의 '개념' 생성)
+                    learned_vectors = [torch.tensor(record["embedding"]).to(device) for record in tag_records]
+                    learned_tensor = torch.stack(learned_vectors).mean(dim=0)
+                    learned_tensor = learned_tensor / learned_tensor.norm(p=2, dim=-1, keepdim=True)
+
+                    # 기존 AI 지식(텍스트) 40% + 사용자가 가르쳐준 지식(사진들) 60% 혼합
+                    # (비율은 원하시는 대로 0.4, 0.6 등으로 조절 가능)
+                    final_tensor = (text_tensor * 0.4) + (learned_tensor * 0.6)
+                    final_tensor = final_tensor / final_tensor.norm(p=2, dim=-1, keepdim=True)
+                else:
+                    # 학습된 데이터가 없으면 기존 방식대로 검색
+                    final_tensor = text_tensor
+                # 👆👆👆 ------------------------------------------ 👆👆👆
+
+                query_vector = final_tensor.flatten().cpu().tolist()[:512]
+
+                # DB 검색 호출
                 response = supabase.rpc("match_images", {
                     "query_embedding": query_vector,
                     "match_threshold": match_threshold,
