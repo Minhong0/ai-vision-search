@@ -87,8 +87,8 @@ with tab_search:
             min_size_kb = None
             
     with col3:
-        st.markdown("**[AI 연산 설정]**")
-        match_threshold = st.slider("유사도 커트라인 (오탐지 방지)", 0.0, 0.5, 0.23, 0.01)
+        st.markdown("**[유사도 설정]**")
+        match_threshold = st.slider("유사도 커트라인", 0.0, 0.5, 0.23, 0.01)
         match_count = st.number_input("최대 출력 개수", min_value=1, max_value=50, value=15)
         
     st.markdown("---")
