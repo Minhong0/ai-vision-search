@@ -9,7 +9,14 @@ from PIL import Image
 from transformers import AutoProcessor, AutoModel
 from supabase import create_client, Client
 
-st.set_page_config(page_title="인제 클라우드 갤러리", page_icon="🇰🇷", layout="wide")
+# ==========================================
+# ⚙️ [설정] 허깅페이스 저장소 정보 입력
+# ==========================================
+# 👇👇 본인의 허깅페이스 아이디/원하는_프로젝트_이름 으로 변경하세요! 👇👇
+HF_REPO_ID = "Rusom/my-custom-factory-clip"
+# 👆👆 -------------------------------------------------------- 👆👆
+
+st.set_page_config(page_title="인제 클라우드 갤러리", page_icon="☁️", layout="wide")
 st.title("☁️인제 클라우드 갤러리")
 st.markdown("사진을 검색 해보세요.")
 
@@ -20,38 +27,76 @@ if "last_query" not in st.session_state:
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = str(uuid.uuid4())
 
-# AI 모델 및 DB 연결
+# ==========================================
+# 🧠 AI 모델 및 DB 핫 리로딩 시스템 구축
+# ==========================================
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+# 1. DB 먼저 연결
 @st.cache_resource
-def load_system():
+def init_supabase():
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
-    sb = create_client(url, key)
-    
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model_id = "Bingsu/clip-vit-base-patch32-ko"
-    
-    model = AutoModel.from_pretrained(model_id, use_safetensors=True).to(device)
-    processor = AutoProcessor.from_pretrained(model_id)
-    
-    return sb, model, processor, device
+    return create_client(url, key)
 
-with st.spinner('AI 엔진을 깨우는 중입니다...'):
-    supabase, model, processor, device = load_system()
+supabase = init_supabase()
+
+# 2. 최신 모델 버전 감지기
+def check_for_new_model():
+    try:
+        latest_job = supabase.table("training_jobs").select("*").eq("status", "completed").order("created_at", desc=True).limit(1).execute()
+        if latest_job.data:
+            latest_version = latest_job.data[0]['model_version']
+            
+            # 새 모델이 나왔다면? -> 뇌 교체!
+            if st.session_state.get("current_model_version") != latest_version:
+                st.toast(f"✨ 새로운 AI 모델({latest_version}) 감지! 뇌를 교체합니다...", icon="🧠")
+                st.session_state.current_model_version = latest_version
+                st.cache_resource.clear() # 캐시 비우기 (기존 모델 삭제)
+                st.rerun() # 화면 새로고침하여 새 모델 장착
+                
+            return latest_version
+    except Exception:
+        pass # 아직 한 번도 학습 안 했거나 에러가 나면 통과
+    return "v_base"
+
+# 3. 모델 로딩 함수
+@st.cache_resource(show_spinner=False)
+def load_ai_model(version_tag): 
+    with st.spinner("☁️ 클라우드에서 AI 모델을 불러오는 중입니다..."):
+        try:
+            if version_tag != "v_base":
+                # 허깅페이스에서 커스텀 모델 불러오기
+                processor = AutoProcessor.from_pretrained(HF_REPO_ID)
+                model = AutoModel.from_pretrained(HF_REPO_ID).to(device)
+                st.toast("✅ 맞춤형 커스텀 AI 모델 장착 완료!", icon="🤖")
+            else:
+                raise ValueError("Go to base model")
+        except Exception:
+            # 커스텀 모델이 없으면 기본 모델로 안전하게 가동
+            processor = AutoProcessor.from_pretrained("Bingsu/clip-vit-base-patch32-ko")
+            model = AutoModel.from_pretrained("Bingsu/clip-vit-base-patch32-ko").to(device)
+            st.toast("기본 AI 모델로 가동합니다.", icon="⚙️")
+            
+    return processor, model
+
+current_version = check_for_new_model()
+processor, model = load_ai_model(current_version)
 
 # 화면 탭 구성
 tab_search, tab_upload, tab_manage = st.tabs(["🔍 사진 검색", "☁️ 사진 업로드", "🗑️ 갤러리 관리"])
 
+# ==========================================
 # [탭 1] 검색 기능 
+# ==========================================
 with tab_search:
     st.subheader("머릿속에 있는 사진을 텍스트로 찾아보세요")
     
-    # 메인 검색창
     query = st.text_input("검색어 입력 (예: 안전모 쓴 작업자, 영수증, 바다)", key="search_input")
     
     st.markdown("---")
     st.markdown("#### ⚙️ 상세 필터 설정 (선택사항)")
     
-    # 토글(Expander)을 없애고 화면에 바로 노출
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -89,17 +134,15 @@ with tab_search:
             st.session_state.display_count = 3
             st.session_state.last_query = query
 
-    with st.spinner('AI가 사용자가 학습시킨 데이터를 바탕으로 교차 검색 중입니다...'):
+        with st.spinner('AI가 사용자가 학습시킨 데이터를 바탕으로 교차 검색 중입니다...'):
             try:
                 start_date_str = start_date.strftime("%Y-%m-%d") if start_date else None
                 end_date_str = end_date.strftime("%Y-%m-%d") if end_date else None
 
-                # 1. 기본 AI 텍스트 벡터 추출 (✨ 에러 수정된 부분)
                 inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
                 with torch.no_grad():
                     text_outputs = model.get_text_features(**inputs)
                     
-                    # 원래 사용하시던 안전한 추출 코드로 복구
                     if isinstance(text_outputs, torch.Tensor):
                         text_tensor = text_outputs
                     elif hasattr(text_outputs, 'text_embeds'):
@@ -111,27 +154,21 @@ with tab_search:
                     
                     text_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
 
-                # 검색어와 일치하는 태그를 가진 사진들이 DB에 있는지 확인
                 tag_response = supabase.table("image_embeddings").select("embedding").ilike("tags", f"%{query}%").execute()
                 tag_records = tag_response.data
 
-                if tag_records: # 사용자가 이 단어로 학습시킨 사진이 존재한다면!
-                    
-                    # 학습된 사진들의 벡터를 모아서 평균을 냄 
+                if tag_records: 
                     learned_vectors = [torch.tensor(record["embedding"]).to(device) for record in tag_records]
                     learned_tensor = torch.stack(learned_vectors).mean(dim=0)
                     learned_tensor = learned_tensor / learned_tensor.norm(p=2, dim=-1, keepdim=True)
 
-                    # 기존 AI 지식(텍스트) 40% + 사용자가 가르쳐준 지식(사진들) 60% 혼합
                     final_tensor = (text_tensor * 0.4) + (learned_tensor * 0.6)
                     final_tensor = final_tensor / final_tensor.norm(p=2, dim=-1, keepdim=True)
                 else:
-                    # 학습된 데이터가 없으면 기존 방식대로 검색
                     final_tensor = text_tensor
 
                 query_vector = final_tensor.flatten().cpu().tolist()[:512]
 
-                # DB 하이브리드 검색 호출
                 response = supabase.rpc("match_images", {
                     "query_embedding": query_vector,
                     "match_threshold": match_threshold,
@@ -143,7 +180,6 @@ with tab_search:
                 
                 results = response.data
                 
-                # 결과 출력
                 if results and len(results) > 0:
                     st.success(f"🎉 필터 조건에 맞는 총 {len(results)}장의 사진을 찾았습니다!")
                     displayed_results = results[:st.session_state.display_count]
@@ -154,7 +190,6 @@ with tab_search:
                             try:
                                 st.image(result['file_path'], use_container_width=True)
                                 
-                                # 화면 표기용 데이터 정제
                                 raw_size = result.get('file_size_kb')
                                 file_size = int(raw_size) if raw_size is not None else 0
                                 created_date = result.get('created_at', '알 수 없음')[:10] if result.get('created_at') else '최근'
@@ -183,9 +218,9 @@ with tab_search:
             except Exception as e:
                 st.error(f"❌ 검색 중 에러 발생: {e}")
 
-# ------------------------------------------
+# ==========================================
 # [탭 2] 업로드 기능
-# ------------------------------------------
+# ==========================================
 with tab_upload:
     st.subheader("새로운 사진들을 클라우드에 한 번에 업로드합니다")
     
@@ -211,18 +246,15 @@ with tab_upload:
             with cols[idx % 5]:
                 st.image(file, use_container_width=True)
         
-        # 👇👇👇 [수정된 부분] 버튼을 2개로 나누어 나란히 배치 👇👇👇
         col_btn1, col_btn2 = st.columns(2)
         
         with col_btn1:
             btn_save_only = st.button("💾 단순 저장 (보관용)", use_container_width=True)
         with col_btn2:
-            # 태그가 없으면 학습 버튼을 누르지 못하도록 막아두는 센스!
             btn_save_and_train = st.button("🚀 저장 및 AI 학습 시작", use_container_width=True, disabled=(not uploaded_tags))
             if not uploaded_tags:
                 st.caption("※ 학습을 시작하려면 태그를 반드시 입력해야 합니다.")
                 
-        # 두 버튼 중 하나라도 눌렸을 때 실행 (공통 저장 로직)
         if btn_save_only or btn_save_and_train:
             progress_text = "업로드 및 분석을 시작합니다..."
             my_bar = st.progress(0, text=progress_text)
@@ -279,7 +311,6 @@ with tab_upload:
                 progress_percent = int(((idx + 1) / len(uploaded_files)) * 100)
                 my_bar.progress(progress_percent, text=f"진행 중... ({idx+1}/{len(uploaded_files)} 장 완료)")
             
-            # 👇👇👇 [학습 버튼]을 눌렀을 때만 추가로 실행되는 MLOps 로직 👇👇👇
             if btn_save_and_train:
                 new_version = f"v_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}"
                 supabase.table("training_jobs").insert({
@@ -291,13 +322,14 @@ with tab_upload:
                 st.info("명령 전송 완료! 이제 갤러리 검색을 정상적으로 이용하셔도 됩니다.")
             else:
                 st.success(f"✅ 총 {success_count}장의 사진이 성공적으로 저장되었습니다!")
-            # 👆👆👆 ------------------------------------------------ 👆👆👆
 
             st.session_state.uploader_key = str(uuid.uuid4())
-            time.sleep(2) # 성공 메시지를 2초간 보여준 뒤
-            st.rerun()    # 화면 초기화
+            time.sleep(2) 
+            st.rerun()    
 
+# ==========================================
 # [탭 3] 관리 및 삭제 기능
+# ==========================================
 with tab_manage:
     st.subheader("🗑️ 클라우드에 저장된 갤러리 관리")
     
