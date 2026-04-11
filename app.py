@@ -10,13 +10,8 @@ from PIL import Image
 from transformers import AutoProcessor, AutoModel
 from supabase import create_client, Client
 
-# ==========================================
-# ⚙️ [설정] 허깅페이스 저장소 정보 입력
-# ==========================================
-# 👇👇 본인의 허깅페이스 아이디/원하는_프로젝트_이름 으로 변경하세요! 👇👇
-HF_REPO_ID = "Rusom/my-custom-factory-clip"
-# 👆👆 -------------------------------------------------------- 👆👆
 
+HF_REPO_ID = "Rusom/my-custom-factory-clip"
 st.set_page_config(page_title="인제 클라우드 갤러리", page_icon="☁️", layout="wide")
 st.title("☁️인제 클라우드 갤러리")
 st.markdown("사진을 검색 해보세요.")
@@ -28,9 +23,6 @@ if "last_query" not in st.session_state:
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = str(uuid.uuid4())
 
-# ==========================================
-# 🧠 AI 모델 및 DB 핫 리로딩 시스템 구축
-# ==========================================
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # 1. DB 먼저 연결
@@ -79,11 +71,9 @@ def load_ai_model(version_tag):
 current_version = check_for_new_model()
 processor, model, model_status = load_ai_model(current_version)
 
-# 화면 알림(UI)은 캐시 바깥에서 안전하게 실행! 
-# 중복 알림을 막기 위해 session_state로 한 번만 띄우게 제어합니다.
 if "notified_version" not in st.session_state or st.session_state.notified_version != current_version:
     if model_status == "custom":
-        st.toast(f"✅ 맞춤형 커스텀 AI 모델({current_version}) 장착 완료!", icon="🤖")
+        st.toast(f"맞춤형 커스텀 AI 모델({current_version})로 가동", icon="🤖")
     else:
         st.toast("기본 AI 모델로 가동합니다.", icon="⚙️")
     st.session_state.notified_version = current_version
@@ -91,9 +81,8 @@ if "notified_version" not in st.session_state or st.session_state.notified_versi
 # 화면 탭 구성
 tab_search, tab_upload, tab_manage = st.tabs(["🔍 사진 검색", "☁️ 사진 업로드", "🗑️ 갤러리 관리"])
 
-# ==========================================
+
 # [탭 1] 검색 기능 
-# ==========================================
 with tab_search:
     st.subheader("머릿속에 있는 사진을 텍스트로 찾아보세요")
     
@@ -163,11 +152,9 @@ with tab_search:
                 tag_records = tag_response.data
 
                 if tag_records: 
-                    # 👇👇👇 [수정된 부분] 문자열(str) 방어 로직 추가 👇👇👇
                     learned_vectors = []
                     for record in tag_records:
                         emb_data = record["embedding"]
-                        # 만약 DB에서 가져온 데이터가 문자열(str) 형태라면 진짜 리스트로 변환
                         if isinstance(emb_data, str):
                             emb_data = json.loads(emb_data)
                         
@@ -231,9 +218,8 @@ with tab_search:
             except Exception as e:
                 st.error(f"❌ 검색 중 에러 발생: {e}")
 
-# ==========================================
+
 # [탭 2] 업로드 기능
-# ==========================================
 with tab_upload:
     st.subheader("새로운 사진들을 클라우드에 한 번에 업로드합니다")
     
@@ -340,9 +326,7 @@ with tab_upload:
             time.sleep(2) 
             st.rerun()    
 
-# ==========================================
 # [탭 3] 관리 및 삭제 기능
-# ==========================================
 with tab_manage:
     st.subheader("🗑️ 클라우드에 저장된 갤러리 관리")
     
