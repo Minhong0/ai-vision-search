@@ -133,7 +133,7 @@ with tab_search:
                 start_date_str = start_date.strftime("%Y-%m-%d") if start_date else None
                 end_date_str = end_date.strftime("%Y-%m-%d") if end_date else None
 
-                inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
+            inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
                 with torch.no_grad():
                     text_outputs = model.get_text_features(**inputs)
                     
@@ -146,29 +146,12 @@ with tab_search:
                     else:
                         text_tensor = text_outputs[0]
                     
-                    text_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
-
-                tag_response = supabase.table("image_embeddings").select("embedding").ilike("tags", f"%{query}%").execute()
-                tag_records = tag_response.data
-
-                if tag_records: 
-                    learned_vectors = []
-                    for record in tag_records:
-                        emb_data = record["embedding"]
-                        if isinstance(emb_data, str):
-                            emb_data = json.loads(emb_data)
-                        
-                    learned_vectors.append(torch.tensor(emb_data).to(device))
-                    learned_tensor = torch.stack(learned_vectors).mean(dim=0)
-                    learned_tensor = learned_tensor / learned_tensor.norm(p=2, dim=-1, keepdim=True)
-
-                    final_tensor = (text_tensor * 0.4) + (learned_tensor * 0.6)
-                    final_tensor = final_tensor / final_tensor.norm(p=2, dim=-1, keepdim=True)
-                else:
-                    final_tensor = text_tensor
+                    # 💡 복잡하게 태그 벡터를 섞지 않고, 똑똑해진 AI의 순수 텍스트 벡터만 사용합니다!
+                    final_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
 
                 query_vector = final_tensor.flatten().cpu().tolist()[:512]
 
+                # DB 검색 호출
                 response = supabase.rpc("match_images", {
                     "query_embedding": query_vector,
                     "match_threshold": match_threshold,
