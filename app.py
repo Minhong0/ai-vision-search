@@ -5,6 +5,7 @@ import uuid
 import requests
 import time
 import datetime  # 날짜 계산을 위해 추가
+import json
 from PIL import Image
 from transformers import AutoProcessor, AutoModel
 from supabase import create_client, Client
@@ -162,7 +163,15 @@ with tab_search:
                 tag_records = tag_response.data
 
                 if tag_records: 
-                    learned_vectors = [torch.tensor(record["embedding"]).to(device) for record in tag_records]
+                    # 👇👇👇 [수정된 부분] 문자열(str) 방어 로직 추가 👇👇👇
+                    learned_vectors = []
+                    for record in tag_records:
+                        emb_data = record["embedding"]
+                        # 만약 DB에서 가져온 데이터가 문자열(str) 형태라면 진짜 리스트로 변환
+                        if isinstance(emb_data, str):
+                            emb_data = json.loads(emb_data)
+                        
+                    learned_vectors.append(torch.tensor(emb_data).to(device))
                     learned_tensor = torch.stack(learned_vectors).mean(dim=0)
                     learned_tensor = learned_tensor / learned_tensor.norm(p=2, dim=-1, keepdim=True)
 
