@@ -9,9 +9,6 @@ from PIL import Image
 from transformers import AutoProcessor, AutoModel
 from supabase import create_client, Client
 
-# ==========================================
-# 1. 기본 웹 설정 및 세션 기억력 초기화
-# ==========================================
 st.set_page_config(page_title="인제 클라우드 갤러리", page_icon="🇰🇷", layout="wide")
 st.title("☁️인제 클라우드 갤러리")
 st.markdown("사진을 검색 해보세요.")
@@ -23,9 +20,7 @@ if "last_query" not in st.session_state:
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = str(uuid.uuid4())
 
-# ==========================================
-# 2. AI 모델 및 DB 연결
-# ==========================================
+# AI 모델 및 DB 연결
 @st.cache_resource
 def load_system():
     url = st.secrets["SUPABASE_URL"]
@@ -43,14 +38,10 @@ def load_system():
 with st.spinner('AI 엔진을 깨우는 중입니다...'):
     supabase, model, processor, device = load_system()
 
-# ==========================================
-# 3. 화면 탭 구성
-# ==========================================
+# 화면 탭 구성
 tab_search, tab_upload, tab_manage = st.tabs(["🔍 사진 검색", "☁️ 사진 업로드", "🗑️ 갤러리 관리"])
 
-# ------------------------------------------
-# [탭 1] 검색 기능 (하이브리드 필터 적용)
-# ------------------------------------------
+# [탭 1] 검색 기능 
 with tab_search:
     st.subheader("머릿속에 있는 사진을 텍스트로 찾아보세요")
     
@@ -120,15 +111,13 @@ with tab_search:
                     
                     text_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
 
-                # 👇👇👇 [핵심] 사용자 주도 학습(파인튜닝) 반영 로직 👇👇👇
                 # 검색어와 일치하는 태그를 가진 사진들이 DB에 있는지 확인
                 tag_response = supabase.table("image_embeddings").select("embedding").ilike("tags", f"%{query}%").execute()
                 tag_records = tag_response.data
 
                 if tag_records: # 사용자가 이 단어로 학습시킨 사진이 존재한다면!
-                    st.toast("사용자가 가르쳐준 특징을 검색에 반영합니다! 🧠", icon="✨")
                     
-                    # 학습된 사진들의 벡터를 모아서 평균을 냄 (사용자 정의 '개념' 생성)
+                    # 학습된 사진들의 벡터를 모아서 평균을 냄 
                     learned_vectors = [torch.tensor(record["embedding"]).to(device) for record in tag_records]
                     learned_tensor = torch.stack(learned_vectors).mean(dim=0)
                     learned_tensor = learned_tensor / learned_tensor.norm(p=2, dim=-1, keepdim=True)
@@ -139,7 +128,6 @@ with tab_search:
                 else:
                     # 학습된 데이터가 없으면 기존 방식대로 검색
                     final_tensor = text_tensor
-                # 👆👆👆 ------------------------------------------ 👆👆👆
 
                 query_vector = final_tensor.flatten().cpu().tolist()[:512]
 
@@ -201,7 +189,6 @@ with tab_search:
 with tab_upload:
     st.subheader("새로운 사진들을 클라우드에 한 번에 업로드합니다")
     
-    # 먼저 사진 업로드 창이 노출됩니다.
     uploaded_files = st.file_uploader(
         "이미지 파일 선택 (여러 장 드래그 앤 드롭 가능)", 
         type=['png', 'jpg', 'jpeg'], 
@@ -209,11 +196,9 @@ with tab_upload:
         key=st.session_state.uploader_key
     )
     
-    # 사진이 올라가면 그제서야 아래 로직(태그 입력, 사진 미리보기, 업로드 버튼)이 화면에 나타납니다.
     if uploaded_files:
         st.write(f"총 **{len(uploaded_files)}**장의 사진이 선택되었습니다.")
         
-        # 👇👇👇 태그 입력란이 파일 업로드 조건문 안으로 들어왔습니다 👇👇👇
         st.markdown("#### 🏷️ 데이터 학습 태그 (선택사항)")
         uploaded_tags = st.text_input(
             "이 사진들의 특징이나 불량 종류를 입력해주세요 (예: 불량 부품, 스크래치, 모터결함)", 
@@ -226,7 +211,19 @@ with tab_upload:
             with cols[idx % 5]:
                 st.image(file, use_container_width=True)
         
-        if st.button("🚀 일괄 클라우드 업로드 및 AI 분석"):
+        # 👇👇👇 [수정된 부분] 버튼을 2개로 나누어 나란히 배치 👇👇👇
+        col_btn1, col_btn2 = st.columns(2)
+        
+        with col_btn1:
+            btn_save_only = st.button("💾 단순 저장 (보관용)", use_container_width=True)
+        with col_btn2:
+            # 태그가 없으면 학습 버튼을 누르지 못하도록 막아두는 센스!
+            btn_save_and_train = st.button("🚀 저장 및 AI 학습 시작", use_container_width=True, disabled=(not uploaded_tags))
+            if not uploaded_tags:
+                st.caption("※ 학습을 시작하려면 태그를 반드시 입력해야 합니다.")
+                
+        # 두 버튼 중 하나라도 눌렸을 때 실행 (공통 저장 로직)
+        if btn_save_only or btn_save_and_train:
             progress_text = "업로드 및 분석을 시작합니다..."
             my_bar = st.progress(0, text=progress_text)
             success_count = 0
@@ -271,10 +268,9 @@ with tab_upload:
                         "file_path": public_url,
                         "file_size_kb": file_size_kb, 
                         "embedding": vector_list,
-                        "tags": uploaded_tags  # 사용자 입력 태그 저장
+                        "tags": uploaded_tags
                     }
                     supabase.table("image_embeddings").insert(insert_data).execute()
-                    
                     success_count += 1
                     
                 except Exception as e:
@@ -283,13 +279,25 @@ with tab_upload:
                 progress_percent = int(((idx + 1) / len(uploaded_files)) * 100)
                 my_bar.progress(progress_percent, text=f"진행 중... ({idx+1}/{len(uploaded_files)} 장 완료)")
             
-            st.success(f"✅ 총 {success_count}장의 사진이 성공적으로 저장되었습니다!")
-            
+            # 👇👇👇 [학습 버튼]을 눌렀을 때만 추가로 실행되는 MLOps 로직 👇👇👇
+            if btn_save_and_train:
+                new_version = f"v_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}"
+                supabase.table("training_jobs").insert({
+                    "status": "pending",
+                    "model_version": new_version
+                }).execute()
+                
+                st.success(f"✅ 총 {success_count}장의 사진 저장 완료 및 훈련소에 학습 명령을 전송했습니다!")
+                st.info("명령 전송 완료! 이제 갤러리 검색을 정상적으로 이용하셔도 됩니다.")
+            else:
+                st.success(f"✅ 총 {success_count}장의 사진이 성공적으로 저장되었습니다!")
+            # 👆👆👆 ------------------------------------------------ 👆👆👆
+
             st.session_state.uploader_key = str(uuid.uuid4())
-            st.rerun()
-# ------------------------------------------
+            time.sleep(2) # 성공 메시지를 2초간 보여준 뒤
+            st.rerun()    # 화면 초기화
+
 # [탭 3] 관리 및 삭제 기능
-# ------------------------------------------
 with tab_manage:
     st.subheader("🗑️ 클라우드에 저장된 갤러리 관리")
     
