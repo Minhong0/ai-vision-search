@@ -133,7 +133,7 @@ with tab_search:
                 start_date_str = start_date.strftime("%Y-%m-%d") if start_date else None
                 end_date_str = end_date.strftime("%Y-%m-%d") if end_date else None
 
-            inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
+                inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
                 with torch.no_grad():
                     text_outputs = model.get_text_features(**inputs)
                     
