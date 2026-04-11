@@ -61,27 +61,31 @@ def check_for_new_model():
     return "v_base"
 
 # 3. 모델 로딩 함수
-@st.cache_resource(show_spinner=False)
+@st.cache_resource(show_spinner="☁️ 클라우드에서 AI 모델을 불러오는 중입니다...")
 def load_ai_model(version_tag): 
-    with st.spinner("☁️ 클라우드에서 AI 모델을 불러오는 중입니다..."):
-        try:
-            if version_tag != "v_base":
-                # 허깅페이스에서 커스텀 모델 불러오기
-                processor = AutoProcessor.from_pretrained(HF_REPO_ID)
-                model = AutoModel.from_pretrained(HF_REPO_ID).to(device)
-                st.toast("✅ 맞춤형 커스텀 AI 모델 장착 완료!", icon="🤖")
-            else:
-                raise ValueError("Go to base model")
-        except Exception:
-            # 커스텀 모델이 없으면 기본 모델로 안전하게 가동
-            processor = AutoProcessor.from_pretrained("Bingsu/clip-vit-base-patch32-ko")
-            model = AutoModel.from_pretrained("Bingsu/clip-vit-base-patch32-ko").to(device)
-            st.toast("기본 AI 모델로 가동합니다.", icon="⚙️")
-            
-    return processor, model
+    try:
+        if version_tag != "v_base":
+            processor = AutoProcessor.from_pretrained(HF_REPO_ID)
+            model = AutoModel.from_pretrained(HF_REPO_ID).to(device)
+            return processor, model, "custom" # 상태값 같이 반환
+        else:
+            raise ValueError("Go to base model")
+    except Exception:
+        processor = AutoProcessor.from_pretrained("Bingsu/clip-vit-base-patch32-ko")
+        model = AutoModel.from_pretrained("Bingsu/clip-vit-base-patch32-ko").to(device)
+        return processor, model, "base" # 상태값 같이 반환
 
 current_version = check_for_new_model()
-processor, model = load_ai_model(current_version)
+processor, model, model_status = load_ai_model(current_version)
+
+# 화면 알림(UI)은 캐시 바깥에서 안전하게 실행! 
+# 중복 알림을 막기 위해 session_state로 한 번만 띄우게 제어합니다.
+if "notified_version" not in st.session_state or st.session_state.notified_version != current_version:
+    if model_status == "custom":
+        st.toast(f"✅ 맞춤형 커스텀 AI 모델({current_version}) 장착 완료!", icon="🤖")
+    else:
+        st.toast("기본 AI 모델로 가동합니다.", icon="⚙️")
+    st.session_state.notified_version = current_version
 
 # 화면 탭 구성
 tab_search, tab_upload, tab_manage = st.tabs(["🔍 사진 검색", "☁️ 사진 업로드", "🗑️ 갤러리 관리"])
