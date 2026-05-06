@@ -82,7 +82,7 @@ def check_for_new_model():
 # 🚀 [수정됨] 발표 시연을 위해 무조건 고성능 Large 모델만 불러오도록 강제 고정
 @st.cache_resource(show_spinner="☁️ 고성능 AI 모델(Large)을 불러오는 중입니다...")
 def load_ai_model(version_tag):
-    model_id = "Bingsu/clip-vit-large-patch14-ko"
+    model_id = "Bingsu/clip-vit-base-patch32-ko"
     processor = AutoProcessor.from_pretrained(model_id)
     model = AutoModel.from_pretrained(model_id).to(device)
     return processor, model, "large_base"
