@@ -59,6 +59,7 @@ supabase = init_supabase()
 
 
 def check_for_new_model():
+    # DB 기록은 확인하되, 발표용 버전에서는 단순히 상태 갱신용으로만 씁니다.
     try:
         latest_job = (
             supabase.table("training_jobs")
@@ -71,38 +72,28 @@ def check_for_new_model():
         if latest_job.data:
             latest_version = latest_job.data[0]["model_version"]
             if st.session_state.get("current_model_version") != latest_version:
-                st.toast(f"✨ 새로운 AI 모델({latest_version}) 감지! 뇌를 교체합니다...", icon="🧠")
                 st.session_state.current_model_version = latest_version
-                st.cache_resource.clear()
-                st.rerun()
             return latest_version
     except Exception:
         pass
     return "v_base"
 
 
-@st.cache_resource(show_spinner="☁️ 클라우드에서 AI 모델을 불러오는 중입니다...")
+# 🚀 [수정됨] 발표 시연을 위해 무조건 고성능 Large 모델만 불러오도록 강제 고정
+@st.cache_resource(show_spinner="☁️ 고성능 AI 모델(Large)을 불러오는 중입니다...")
 def load_ai_model(version_tag):
-    try:
-        if version_tag != "v_base":
-            processor = AutoProcessor.from_pretrained(HF_REPO_ID)
-            model = AutoModel.from_pretrained(HF_REPO_ID).to(device)
-            return processor, model, "custom"
-        raise ValueError("Go to base model")
-    except Exception:
-        processor = AutoProcessor.from_pretrained("Bingsu/clip-vit-large-patch14-ko")
-        model = AutoModel.from_pretrained("Bingsu/clip-vit-large-patch14-ko").to(device)
-        return processor, model, "base"
+    model_id = "Bingsu/clip-vit-large-patch14-ko"
+    processor = AutoProcessor.from_pretrained(model_id)
+    model = AutoModel.from_pretrained(model_id).to(device)
+    return processor, model, "large_base"
 
 
 current_version = check_for_new_model()
 processor, model, model_status = load_ai_model(current_version)
 
+# 알림 메시지도 시연용으로 멋지게 변경
 if "notified_version" not in st.session_state or st.session_state.notified_version != current_version:
-    if model_status == "custom":
-        st.toast(f"맞춤형 커스텀 AI 모델({current_version})로 가동", icon="🤖")
-    else:
-        st.toast("기본 AI 모델로 가동합니다.", icon="⚙️")
+    st.toast("🚀 발표용 고성능 AI 모델(Large) 탑재 완료!", icon="✨")
     st.session_state.notified_version = current_version
 
 st.markdown('<div class="main-title">🔍 자연어 클라우드 갤러리</div>', unsafe_allow_html=True)
@@ -118,7 +109,7 @@ with st.sidebar:
     st.caption("• 바다")
     st.caption("• 불량 부품")
     st.divider()
-    st.caption(f"현재 모델 버전: {current_version}")
+    st.caption(f"현재 로드된 모델: Large-Patch14")
 
 
 def render_search_card(result):
@@ -225,7 +216,7 @@ with tab_search:
             st.session_state.display_count = 3
             st.session_state.last_query = query
 
-        with st.spinner("AI가 사용자가 학습시킨 데이터를 바탕으로 교차 검색 중입니다..."):
+        with st.spinner("AI가 고성능 파라미터를 바탕으로 교차 검색 중입니다..."):
             try:
                 start_date_str = start_date.strftime("%Y-%m-%d") if start_date else None
                 end_date_str = end_date.strftime("%Y-%m-%d") if end_date else None
