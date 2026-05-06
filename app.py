@@ -104,12 +104,10 @@ with st.sidebar:
     st.caption("사용자 화면은 정돈된 카드형 UI로 구성되어 있습니다.")
     st.divider()
     st.caption("검색 팁")
-    st.caption("• 안전모 쓴 작업자")
-    st.caption("• 영수증")
     st.caption("• 바다")
-    st.caption("• 불량 부품")
+    st.caption("• 고양이")
     st.divider()
-    st.caption(f"현재 로드된 모델: Large-Patch14")
+    st.caption(f"현재 로드된 모델: Bingsu/clip-vit-base-patch32-ko")
 
 
 def render_search_card(result):
