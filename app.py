@@ -90,8 +90,8 @@ def load_ai_model(version_tag):
             return processor, model, "custom"
         raise ValueError("Go to base model")
     except Exception:
-        processor = AutoProcessor.from_pretrained("Bingsu/clip-vit-base-patch32-ko")
-        model = AutoModel.from_pretrained("Bingsu/clip-vit-base-patch32-ko").to(device)
+        processor = AutoProcessor.from_pretrained("Bingsu/clip-vit-large-patch14-ko")
+        model = AutoModel.from_pretrained("Bingsu/clip-vit-large-patch14-ko").to(device)
         return processor, model, "base"
 
 
