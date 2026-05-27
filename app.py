@@ -59,7 +59,6 @@ supabase = init_supabase()
 
 
 def check_for_new_model():
-    # DB 기록은 확인하되, 발표용 버전에서는 단순히 상태 갱신용으로만 씁니다.
     try:
         latest_job = (
             supabase.table("training_jobs")
@@ -79,21 +78,39 @@ def check_for_new_model():
     return "v_base"
 
 
-# 🚀 [수정됨] 발표 시연을 위해 무조건 고성능 Large 모델만 불러오도록 강제 고정
-@st.cache_resource(show_spinner="☁️ 고성능 AI 모델(Large)을 불러오는 중입니다...")
+# =====================================================================
+# 🚀 AI 모델 로딩 스위치 (주석으로 버전 변경)
+# =====================================================================
+@st.cache_resource(show_spinner="☁️ 고성능 AI 모델(768차원)을 불러오는 중입니다...")
 def load_ai_model(version_tag):
-    model_id = "Bingsu/clip-vit-base-patch32-ko"
+    # ---------------------------------------------------------
+    # 🟢 [버전 1] 기본 대형 모델 (현재 활성화됨 - 중간발표/초기 세팅용)
+    # ---------------------------------------------------------
+    model_id = "Bingsu/clip-vit-large-patch14-ko"
     processor = AutoProcessor.from_pretrained(model_id)
     model = AutoModel.from_pretrained(model_id).to(device)
-    return processor, model, "large_base"
+    model_status = "Base_Large_768"
 
+    # ---------------------------------------------------------
+    # 🔴 [버전 2] 우리가 직접 학습시킨 커스텀 모델 (기말/실전용)
+    # (사용 시 위 [버전 1] 코드를 주석 처리하고, 아래 4줄의 주석을 해제하세요.)
+    # ---------------------------------------------------------
+    # model_id = HF_REPO_ID
+    # processor = AutoProcessor.from_pretrained(model_id)
+    # model = AutoModel.from_pretrained(model_id).to(device)
+    # model_status = "Custom_Trained_768"
+    
+    return processor, model, model_status
+# =====================================================================
 
 current_version = check_for_new_model()
 processor, model, model_status = load_ai_model(current_version)
 
-# 알림 메시지도 시연용으로 멋지게 변경
 if "notified_version" not in st.session_state or st.session_state.notified_version != current_version:
-    st.toast("🚀 발표용 고성능 AI 모델(Large) 탑재 완료!", icon="✨")
+    if model_status == "Custom_Trained_768":
+        st.toast("🚀 학습된 커스텀 AI 모델 장착 완료!", icon="🧠")
+    else:
+        st.toast("🚀 발표용 고성능 AI 모델(Large) 탑재 완료!", icon="✨")
     st.session_state.notified_version = current_version
 
 st.markdown('<div class="main-title">🔍 자연어 클라우드 갤러리</div>', unsafe_allow_html=True)
@@ -104,10 +121,11 @@ with st.sidebar:
     st.caption("사용자 화면은 정돈된 카드형 UI로 구성되어 있습니다.")
     st.divider()
     st.caption("검색 팁")
+    st.caption("• 특수 객체 이름")
+    st.caption("• 스크래치 난 부품")
     st.caption("• 바다")
-    st.caption("• 고양이")
     st.divider()
-    st.caption(f"현재 로드된 모델: Bingsu/clip-vit-base-patch32-ko")
+    st.caption(f"현재 로드된 모델: {model_status}")
 
 
 def render_search_card(result):
@@ -178,7 +196,7 @@ with tab_search:
     with q1:
         query = st.text_input("검색어", placeholder="예: 안전모 쓴 작업자, 영수증, 바다", key="search_input")
     with q2:
-        match_threshold = st.slider("유사도", 0.0, 0.5, 0.23, 0.01)
+        match_threshold = st.slider("유사도 커트라인", 0.0, 0.5, 0.23, 0.01)
     with q3:
         match_count = st.number_input("최대 개수", min_value=1, max_value=50, value=15)
 
@@ -214,7 +232,7 @@ with tab_search:
             st.session_state.display_count = 3
             st.session_state.last_query = query
 
-        with st.spinner("AI가 고성능 파라미터를 바탕으로 교차 검색 중입니다..."):
+        with st.spinner("AI가 768차원 파라미터를 바탕으로 교차 검색 중입니다..."):
             try:
                 start_date_str = start_date.strftime("%Y-%m-%d") if start_date else None
                 end_date_str = end_date.strftime("%Y-%m-%d") if end_date else None
@@ -234,7 +252,8 @@ with tab_search:
 
                     final_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
 
-                query_vector = final_tensor.flatten().cpu().tolist()[:512]
+                # 💡 [핵심] 512차원 -> 768차원으로 확장된 부분 (텍스트)
+                query_vector = final_tensor.flatten().cpu().tolist()[:768]
 
                 response = supabase.rpc(
                     "match_images",
@@ -266,7 +285,7 @@ with tab_search:
                             st.session_state.display_count += 3
                             st.rerun()
                 else:
-                    st.warning("⚠️ 필터 조건이나 검색어에 맞는 사진이 없습니다. 필터를 해제하거나 검색어를 바꿔보세요!")
+                    st.warning("⚠️ 필터 조건이나 검색어에 맞는 사진이 없습니다. 유사도 컷을 낮추거나 검색어를 바꿔보세요!")
             except Exception as e:
                 st.error(f"❌ 검색 중 에러 발생: {e}")
     else:
@@ -317,7 +336,7 @@ with tab_upload:
                 st.caption("※ 학습을 시작하려면 태그를 반드시 입력해야 합니다.")
 
         if btn_save_only or btn_save_and_train:
-            progress_text = "업로드 및 분석을 시작합니다..."
+            progress_text = "업로드 및 768차원 분석을 시작합니다..."
             my_bar = st.progress(0, text=progress_text)
             success_count = 0
 
@@ -354,7 +373,9 @@ with tab_upload:
                             img_tensor = img_outputs[0]
 
                         img_tensor = img_tensor / img_tensor.norm(p=2, dim=-1, keepdim=True)
-                        vector_list = img_tensor.flatten().cpu().tolist()[:512]
+                        
+                        # 💡 [핵심] 512차원 -> 768차원으로 확장된 부분 (이미지)
+                        vector_list = img_tensor.flatten().cpu().tolist()[:768]
 
                     insert_data = {
                         "file_name": original_filename,
