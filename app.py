@@ -70,45 +70,30 @@ def check_for_new_model():
         )
         if latest_job.data:
             latest_version = latest_job.data[0]["model_version"]
-            # 실시간 변경 감지 시 캐시를 지우고 핫 리로딩 수행
             if st.session_state.get("current_model_version") != latest_version:
-                st.toast(f"🧠 새로운 AI 모델({latest_version}) 업로드 감지! 뇌를 실시간 교체합니다...", icon="✨")
                 st.session_state.current_model_version = latest_version
-                st.cache_resource.clear()
-                st.rerun()
             return latest_version
     except Exception:
         pass
     return "v_base"
 
 
-# 🚀 [요청 반영] 768차원을 유지한 채로 초기 모델과 커스텀 모델을 안전하게 전환하는 로직
-@st.cache_resource(show_spinner="☁️ 클라우드에서 AI 모델을 로드하는 중...")
+# =====================================================================
+# 🚀 AI 모델 로딩 (768차원 Large 모델 고정)
+# =====================================================================
+@st.cache_resource(show_spinner="☁️ 고성능 AI 모델(768차원)을 불러오는 중입니다...")
 def load_ai_model(version_tag):
-    try:
-        # train.py에 의해 학습이 완료되고 변경(completed)이 발생했을 때만 내 커스텀 모델 로드
-        if version_tag != "v_base":
-            processor = AutoProcessor.from_pretrained(HF_REPO_ID)
-            model = AutoModel.from_pretrained(HF_REPO_ID).to(device)
-            return processor, model, f"Custom_Model ({version_tag})"
-        raise ValueError("초기 상태이므로 기본 대형 모델로 시작합니다.")
-    except Exception:
-        # 변경이 발생하기 전이나 예전 512차원 파일로 인해 로드 실패 시, 무조건 기존 768차원 오리지널 Large 모델 사용
-        model_id = "Bingsu/clip-vit-large-patch14-ko"
-        processor = AutoProcessor.from_pretrained(model_id)
-        model = AutoModel.from_pretrained(model_id).to(device)
-        return processor, model, "Base_Large_768"
+    # 발표 시연용: Bingsu Large 모델 사용
+    model_id = "Bingsu/clip-vit-large-patch14-ko"
+    processor = AutoProcessor.from_pretrained(model_id)
+    model = AutoModel.from_pretrained(model_id).to(device)
+    model_status = "Base_Large_768"
+    
+    return processor, model, model_status
 
 
 current_version = check_for_new_model()
 processor, model, model_status = load_ai_model(current_version)
-
-if "notified_version" not in st.session_state or st.session_state.notified_version != current_version:
-    if "Custom_Model" in model_status:
-        st.toast(f"🤖 맞춤형 커스텀 AI 모델(768차원)로 가동 완료! ({current_version})", icon="✅")
-    else:
-        st.toast("⚙️ 초기 상태: 오리지널 대형 AI 모델(768차원) 가동 중", icon="🚀")
-    st.session_state.notified_version = current_version
 
 st.markdown('<div class="main-title">🔍 자연어 클라우드 갤러리</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">커스텀 AI 검색 · 클라우드 업로드 · 갤러리 관리</div>', unsafe_allow_html=True)
@@ -193,7 +178,7 @@ with tab_search:
     with q1:
         query = st.text_input("검색어", placeholder="예: 안전모 쓴 작업자, 영수증, 바다", key="search_input")
     with q2:
-        # 💡 Large 사양에 최적화된 유사도 슬라이더 유지
+        # 💡 [수정됨] Large 모델에 최적화하여 기본값 0.18로 하향 조정
         match_threshold = st.slider("유사도 커트라인", 0.0, 0.4, 0.18, 0.01)
     with q3:
         match_count = st.number_input("최대 개수", min_value=1, max_value=50, value=15)
@@ -250,7 +235,7 @@ with tab_search:
 
                     final_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
 
-                # 💡 768차원 유지
+                # 💡 768차원 추출
                 query_vector = final_tensor.flatten().cpu().tolist()[:768]
 
                 response = supabase.rpc(
@@ -370,7 +355,7 @@ with tab_upload:
 
                         img_tensor = img_tensor / img_tensor.norm(p=2, dim=-1, keepdim=True)
                         
-                        # 💡 768차원 유지
+                        # 💡 768차원 추출
                         vector_list = img_tensor.flatten().cpu().tolist()[:768]
 
                     insert_data = {
