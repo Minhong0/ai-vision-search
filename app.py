@@ -46,19 +46,19 @@ st.markdown(
     
     /* 📱 3. [핵심] 메뉴(⋮)를 사진 안쪽으로 강제로 끌어올리기 */
     div[data-testid="stPopover"] {
-        margin-top: -45px !important; /* 위로 45px 멱살 잡고 끌어올림 (사진 위로 겹침) */
+        margin-top: -45px !important; 
         margin-right: 8px !important; 
-        display: flex;
-        justify-content: flex-end;    /* 우측 정렬 */
-        opacity: 0;                   /* 평소엔 투명하게 숨김 */
-        transition: opacity 0.2s ease-in-out;
-        position: relative;
-        z-index: 99;
+        display: flex !important;
+        justify-content: flex-end !important;
+        opacity: 0 !important;        /* 💡 평소엔 투명하게 숨김 */
+        transition: opacity 0.2s ease-in-out !important;
+        position: relative !important;
+        z-index: 999 !important;      /* 💡 사진 뒤로 숨지 않도록 무조건 최상단 배치 */
     }
     
     /* 📱 4. 마우스 호버 시 숨겨진 메뉴 나타남 */
     div[data-testid="column"]:hover div[data-testid="stPopover"] {
-        opacity: 1; 
+        opacity: 1 !important;        /* 💡 !important를 꼭 붙여야 나타납니다! */
     }
     
     /* 📱 5. 팝오버(⋮) 버튼 자체를 작고 반투명하게 디자인 */
@@ -86,7 +86,7 @@ st.markdown(
 )
 
 if "display_count" not in st.session_state:
-    st.session_state.display_count = 3
+    st.session_state.display_count = 5
 if "last_query" not in st.session_state:
     st.session_state.last_query = ""
 if "uploader_key" not in st.session_state:
