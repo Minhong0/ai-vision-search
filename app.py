@@ -21,7 +21,7 @@ st.set_page_config(
 )
 
 # =====================================================================
-# 💡 [CSS 설정] 삼성 갤러리 타일 스타일 & UI 최적화
+# 💡 [CSS 설정] 레이아웃 정상화 & 깔끔한 갤러리 UI
 # =====================================================================
 st.markdown(
     """
@@ -36,24 +36,26 @@ st.markdown(
         border-radius: 8px !important;
     }
     
-    /* 2. 사진 위아래 간격 최소화 */
-    [data-testid="column"] { padding: 4px !important; }
-    div[data-testid="stVerticalBlock"] { gap: 0rem !important; }
+    /* 💡 폭탄(gap: 0rem) 제거됨! 스트림릿 기본 여백은 그대로 둡니다. */
     
-    /* 3. 팝오버(⋮) 버튼 투명하고 깔끔하게 */
+    /* 2. 팝오버(⋮) 버튼을 제목과 일직선이 되도록 예쁘게 정렬 */
     [data-testid="stPopover"] > button {
         background-color: transparent !important;
         border: none !important;
         color: #888 !important;
-        font-size: 1.2rem !important;
+        font-size: 1.3rem !important; /* 점 3개 크기 살짝 키움 */
         font-weight: bold !important;
         padding: 0 !important;
         min-height: 0 !important;
+        margin-top: -5px !important; /* 제목(텍스트) 높이와 맞추기 위해 살짝 위로 올림 */
     }
     [data-testid="stPopover"] > button:hover {
         color: #000 !important;
         background-color: transparent !important;
     }
+    
+    /* 화면 깜빡임 방지 */
+    div[data-stale="true"] { opacity: 1 !important; filter: none !important; transition: none !important; }
 </style>
     """,
     unsafe_allow_html=True,
@@ -138,7 +140,6 @@ with st.sidebar:
         key="model_choice",
         on_change=lambda: st.cache_resource.clear() if st.session_state.model_choice != "2. 커스텀 맞춤형 모델 (학습 후)" else None
     )
-    is_custom = "커스텀" in model_choice
     
     st.divider()
     st.caption("검색 팁")
@@ -152,14 +153,12 @@ with st.sidebar:
 
 
 # =====================================================================
-# 📇 사진 클릭 시 확대 + 호버 시에만 나타나는 숨김 메뉴
+# 📇 카드 렌더링 함수 (사진 아래 깔끔하게 정보 배치)
 # =====================================================================
 def render_search_card(result):
     try:
-        # 1. 꽉 찬 이미지 (클릭 시 확대됨)
         st.image(result["file_path"], use_container_width=True)
         
-        # 2. 이미지 바로 아래 정보와 메뉴 배치
         col_title, col_menu = st.columns([5, 1])
         with col_title:
             st.markdown(f"**{result['file_name']}**")
@@ -224,6 +223,7 @@ def render_manage_card(record):
                 st.toast("삭제 완료!")
                 time.sleep(0.5)
                 st.rerun()
+
 # =====================================================================
 # 화면 탭 구성
 # =====================================================================
@@ -283,16 +283,7 @@ with tab_search:
                 inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
                 with torch.no_grad():
                     text_outputs = model.get_text_features(**inputs)
-
-                    if isinstance(text_outputs, torch.Tensor):
-                        text_tensor = text_outputs
-                    elif hasattr(text_outputs, "text_embeds"):
-                        text_tensor = text_outputs.text_embeds
-                    elif hasattr(text_outputs, "pooler_output"):
-                        text_tensor = text_outputs.pooler_output
-                    else:
-                        text_tensor = text_outputs[0]
-
+                    text_tensor = text_outputs if isinstance(text_outputs, torch.Tensor) else (text_outputs.text_embeds if hasattr(text_outputs, "text_embeds") else (text_outputs.pooler_output if hasattr(text_outputs, "pooler_output") else text_outputs[0]))
                     final_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
 
                 query_vector = final_tensor.flatten().cpu().tolist()[:768]
@@ -315,8 +306,9 @@ with tab_search:
                     st.success(f"🎉 필터 조건에 맞는 총 {len(results)}장의 사진을 찾았습니다!")
                     displayed_results = results[: st.session_state.display_count]
 
+                    # 💡 5개 단위로 잘라오면서, 화면도 5칸(st.columns(5))으로 정상 수정 완료!
                     for start in range(0, len(displayed_results), 5):
-                        cols = st.columns(3)
+                        cols = st.columns(5)
                         chunk = displayed_results[start:start + 5]
                         for col, result in zip(cols, chunk):
                             with col:
@@ -400,16 +392,7 @@ with tab_upload:
 
                         with torch.no_grad():
                             img_outputs = model.get_image_features(**inputs)
-
-                            if isinstance(img_outputs, torch.Tensor):
-                                img_tensor = img_outputs
-                            elif hasattr(img_outputs, "image_embeds"):
-                                img_tensor = img_outputs.image_embeds
-                            elif hasattr(img_outputs, "pooler_output"):
-                                img_tensor = img_outputs.pooler_output
-                            else:
-                                img_tensor = img_outputs[0]
-
+                            img_tensor = img_outputs if isinstance(img_outputs, torch.Tensor) else (img_outputs.image_embeds if hasattr(img_outputs, "image_embeds") else (img_outputs.pooler_output if hasattr(img_outputs, "pooler_output") else img_outputs[0]))
                             img_tensor = img_tensor / img_tensor.norm(p=2, dim=-1, keepdim=True)
                             vector_list = img_tensor.flatten().cpu().tolist()[:768]
 
@@ -476,7 +459,7 @@ with tab_manage:
         if st.button("🔄 목록 새로고침", use_container_width=True):
             st.rerun()
     with top2:
-        cols_n = st.selectbox("한 줄 수", [3, 4, 5, 6, 7], index=3) # 💡 타일형이라 더 촘촘하게 배열 가능하도록 늘림
+        cols_n = st.selectbox("한 줄 수", [3, 4, 5, 6, 7], index=2)
 
     try:
         records = (
