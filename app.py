@@ -20,7 +20,9 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# 💡 [CSS 설정] 갤러리 이미지 크기 통일 및 화면 깜빡임/반투명 현상 강제 제거
+# =====================================================================
+# 💡 [CSS 설정] 삼성 갤러리 타일 스타일 & UI 최적화
+# =====================================================================
 st.markdown(
     """
 <style>
@@ -37,13 +39,36 @@ st.markdown(
     .stTabs [data-baseweb="tab"] {
         height: 44px; border-radius: 12px; padding: 0 14px;
     }
+    
+    /* 📱 삼성 갤러리 스타일 1:1 정사각형 타일형 썸네일 */
     .gallery-img {
         width: 100%;
-        height: 180px;
+        aspect-ratio: 1 / 1;
         object-fit: cover;
-        border-radius: 8px;
-        margin-bottom: 8px;
+        border-radius: 4px;
+        display: block;
     }
+    
+    /* 💡 컬럼 사이의 여백(간격)을 대폭 줄여서 다닥다닥 붙임 */
+    div[data-testid="column"] {
+        padding: 4px !important;
+    }
+    
+    /* 💡 팝오버(⋮) 버튼을 투명하고 작게 만들어 이미지 바로 밑에 밀착 */
+    div[data-testid="stPopover"] > button {
+        padding: 0px !important;
+        min-height: 24px !important;
+        background-color: transparent !important;
+        border: none !important;
+        color: #94a3b8 !important;
+        margin-top: 2px !important;
+    }
+    div[data-testid="stPopover"] > button:hover {
+        color: #f8fafc !important;
+        background-color: transparent !important;
+    }
+
+    /* 화면 새로고침 시 깜빡임/반투명해지는 현상 강제 제거 */
     div[data-stale="true"] {
         opacity: 1 !important;
         filter: none !important;
@@ -147,109 +172,94 @@ with st.sidebar:
 
 
 # =====================================================================
-# 📇 깔끔한 인스타그램 스타일 3점 메뉴(⋮) 갤러리 카드
+# 📇 삼성 갤러리 스타일 타일형 카드 렌더링 함수
 # =====================================================================
 def render_search_card(result):
-    with st.container(border=True):
-        try:
-            # 1. 이미지 출력 (비율 유지)
-            st.markdown(f'<img src="{result["file_path"]}" class="gallery-img">', unsafe_allow_html=True)
+    try:
+        # 1. 테두리 없이 1:1 정사각형 썸네일 출력
+        st.markdown(f'<img src="{result["file_path"]}" class="gallery-img">', unsafe_allow_html=True)
+        
+        raw_size = result.get("file_size_kb")
+        file_size = int(raw_size) if raw_size is not None else 0
+        
+        # 2. 이미지 아래 투명한 [⋮] 버튼 생성
+        with st.popover("⋮", use_container_width=True):
+            st.markdown(f"**{result['file_name']}**")
+            st.caption(f"🎯 유사도: {result['similarity']:.3f} · 💾 {file_size}KB")
             
-            raw_size = result.get("file_size_kb")
-            file_size = int(raw_size) if raw_size is not None else 0
+            new_name = st.text_input("이름 변경", value=result["file_name"], key=f"rn_src_{result['id']}")
+            if st.button("💾 저장", key=f"rn_btn_src_{result['id']}", use_container_width=True):
+                supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", result["id"]).execute()
+                st.toast("이름이 변경되었습니다!", icon="✅")
+                time.sleep(0.5)
+                st.rerun()
             
-            # 2. 파일 이름과 3점 메뉴(⋮)를 가로로 나란히 배치
-            title_col, menu_col = st.columns([5, 1])
+            st.divider()
             
-            with title_col:
-                st.markdown(f"**{result['file_name']}**")
-                st.caption(f"🎯 {result['similarity']:.2f} · 💾 {file_size}KB")
+            img_data = requests.get(result["file_path"]).content
+            st.download_button(
+                label="📥 다운로드",
+                data=img_data,
+                file_name=result["file_name"],
+                mime="image/jpeg",
+                key=f"dl_src_{result['id']}",
+                use_container_width=True,
+            )
             
-            with menu_col:
-                # 커다란 버튼 대신 작은 3점(⋮) 기호로 팝오버 생성
-                with st.popover("⋮"):
-                    # [기능 1] 이름 변경
-                    new_name = st.text_input("이름 변경", value=result["file_name"], key=f"rn_src_{result['id']}")
-                    if st.button("💾 저장", key=f"rn_btn_src_{result['id']}", use_container_width=True):
-                        supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", result["id"]).execute()
-                        st.toast("이름이 변경되었습니다!", icon="✅")
-                        time.sleep(0.5)
-                        st.rerun()
-                    
-                    st.divider()
-                    
-                    # [기능 2] 다운로드
-                    img_data = requests.get(result["file_path"]).content
-                    st.download_button(
-                        label="📥 다운로드",
-                        data=img_data,
-                        file_name=result["file_name"],
-                        mime="image/jpeg",
-                        key=f"dl_src_{result['id']}",
-                        use_container_width=True,
-                    )
-                    
-                    # [기능 3] 영구 삭제 (검색 탭에도 추가)
-                    if st.button("🗑️ 삭제", key=f"del_src_{result['id']}", use_container_width=True, type="primary"):
-                        storage_filename = result["file_path"].split("/")[-1]
-                        supabase.storage.from_("images").remove([storage_filename])
-                        supabase.table("image_embeddings").delete().eq("id", result["id"]).execute()
-                        st.toast("삭제 완료!", icon="🗑️")
-                        time.sleep(0.5)
-                        st.rerun()
-        except Exception:
-            st.error("이미지 로드 실패")
+            if st.button("🗑️ 삭제", key=f"del_src_{result['id']}", use_container_width=True, type="primary"):
+                storage_filename = result["file_path"].split("/")[-1]
+                supabase.storage.from_("images").remove([storage_filename])
+                supabase.table("image_embeddings").delete().eq("id", result["id"]).execute()
+                st.toast("삭제 완료!", icon="🗑️")
+                time.sleep(0.5)
+                st.rerun()
+    except Exception:
+        st.error("이미지 에러")
 
 
 def render_manage_card(record):
-    with st.container(border=True):
-        st.markdown(f'<img src="{record["file_path"]}" class="gallery-img">', unsafe_allow_html=True)
-        
-        raw_size = record.get("file_size_kb")
-        file_size = int(raw_size) if raw_size is not None else 0
-        created_date = record.get("created_at", "알 수 없음")[:10] if record.get("created_at") else "기존 데이터"
-        
-        # 파일 이름과 3점 메뉴(⋮)를 가로로 나란히 배치
-        title_col, menu_col = st.columns([5, 1])
-        
-        with title_col:
-            st.markdown(f"**{record['file_name']}**")
-            st.caption(f"📅 {created_date} · 💾 {file_size}KB")
+    # 1. 테두리 없이 1:1 정사각형 썸네일 출력
+    st.markdown(f'<img src="{record["file_path"]}" class="gallery-img">', unsafe_allow_html=True)
+    
+    raw_size = record.get("file_size_kb")
+    file_size = int(raw_size) if raw_size is not None else 0
+    created_date = record.get("created_at", "알 수 없음")[:10] if record.get("created_at") else "기존 데이터"
+    
+    # 2. 이미지 아래 투명한 [⋮] 버튼 생성
+    with st.popover("⋮", use_container_width=True):
+        st.markdown(f"**{record['file_name']}**")
+        st.caption(f"📅 {created_date} · 💾 {file_size}KB")
 
-        with menu_col:
-            with st.popover("⋮"):
-                # [기능 1] 이름 변경
-                new_name = st.text_input("이름 변경", value=record["file_name"], key=f"rn_mng_{record['id']}")
-                if st.button("💾 저장", key=f"rn_btn_mng_{record['id']}", use_container_width=True):
-                    supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", record["id"]).execute()
-                    st.toast("이름이 변경되었습니다!", icon="✅")
-                    time.sleep(0.5)
-                    st.rerun()
-                
-                st.divider()
-                
-                # [기능 2] 다운로드
-                try:
-                    img_data = requests.get(record["file_path"]).content
-                    st.download_button(
-                        label="📥 다운로드",
-                        data=img_data,
-                        file_name=record["file_name"],
-                        mime="image/jpeg",
-                        key=f"dl_mng_{record['id']}",
-                        use_container_width=True,
-                    )
-                except Exception:
-                    st.button("다운로드 불가", disabled=True, key=f"disabled_{record['id']}", use_container_width=True)
-                
-                # [기능 3] 영구 삭제
-                if st.button("🗑️ 삭제", key=f"del_mng_{record['id']}", use_container_width=True, type="primary"):
-                    storage_filename = record["file_path"].split("/")[-1]
-                    supabase.storage.from_("images").remove([storage_filename])
-                    supabase.table("image_embeddings").delete().eq("id", record["id"]).execute()
-                    st.toast("삭제 완료!", icon="🗑️")
-                    time.sleep(0.5)
-                    st.rerun()
+        new_name = st.text_input("이름 변경", value=record["file_name"], key=f"rn_mng_{record['id']}")
+        if st.button("💾 저장", key=f"rn_btn_mng_{record['id']}", use_container_width=True):
+            supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", record["id"]).execute()
+            st.toast("이름이 변경되었습니다!", icon="✅")
+            time.sleep(0.5)
+            st.rerun()
+        
+        st.divider()
+        
+        try:
+            img_data = requests.get(record["file_path"]).content
+            st.download_button(
+                label="📥 다운로드",
+                data=img_data,
+                file_name=record["file_name"],
+                mime="image/jpeg",
+                key=f"dl_mng_{record['id']}",
+                use_container_width=True,
+            )
+        except Exception:
+            st.button("다운로드 불가", disabled=True, key=f"disabled_{record['id']}", use_container_width=True)
+        
+        if st.button("🗑️ 삭제", key=f"del_mng_{record['id']}", use_container_width=True, type="primary"):
+            storage_filename = record["file_path"].split("/")[-1]
+            supabase.storage.from_("images").remove([storage_filename])
+            supabase.table("image_embeddings").delete().eq("id", record["id"]).execute()
+            st.toast("삭제 완료!", icon="🗑️")
+            time.sleep(0.5)
+            st.rerun()
+
 
 # =====================================================================
 # 화면 탭 구성
@@ -358,7 +368,7 @@ with tab_search:
             except Exception as e:
                 st.error(f"❌ 검색 중 에러 발생: {e}")
     else:
-        st.info("검색어를 입력하면 결과가 카드형 갤러리로 표시됩니다.")
+        st.info("검색어를 입력하면 결과가 갤러리로 표시됩니다.")
 
 
 # [탭 2] 업로드 기능
@@ -503,7 +513,7 @@ with tab_manage:
         if st.button("🔄 목록 새로고침", use_container_width=True):
             st.rerun()
     with top2:
-        cols_n = st.selectbox("한 줄 수", [3, 4, 5], index=1)
+        cols_n = st.selectbox("한 줄 수", [3, 4, 5, 6, 7], index=3) # 💡 타일형이라 더 촘촘하게 배열 가능하도록 늘림
 
     try:
         records = (
