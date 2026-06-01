@@ -272,7 +272,7 @@ with tab_search:
 
     if query:
         if query != st.session_state.last_query:
-            st.session_state.display_count = 3
+            st.session_state.display_count = 5
             st.session_state.last_query = query
 
         with st.spinner("AI가 768차원 고성능 분석 중..."):
@@ -315,16 +315,16 @@ with tab_search:
                     st.success(f"🎉 필터 조건에 맞는 총 {len(results)}장의 사진을 찾았습니다!")
                     displayed_results = results[: st.session_state.display_count]
 
-                    for start in range(0, len(displayed_results), 3):
+                    for start in range(0, len(displayed_results), 5):
                         cols = st.columns(3)
-                        chunk = displayed_results[start:start + 3]
+                        chunk = displayed_results[start:start + 5]
                         for col, result in zip(cols, chunk):
                             with col:
                                 render_search_card(result)
 
                     if st.session_state.display_count < len(results):
                         if st.button("더 보기", use_container_width=True):
-                            st.session_state.display_count += 3
+                            st.session_state.display_count += 5
                             st.rerun()
                 else:
                     st.warning("⚠️ 사진을 찾지 못했습니다. 커트라인 수치를 낮춰보세요!")
