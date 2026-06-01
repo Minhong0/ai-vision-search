@@ -147,40 +147,56 @@ with st.sidebar:
 
 
 # =====================================================================
-# 📇 카드 렌더링 함수 (팝오버 메뉴 적용)
+# 📇 깔끔한 인스타그램 스타일 3점 메뉴(⋮) 갤러리 카드
 # =====================================================================
 def render_search_card(result):
     with st.container(border=True):
         try:
+            # 1. 이미지 출력 (비율 유지)
             st.markdown(f'<img src="{result["file_path"]}" class="gallery-img">', unsafe_allow_html=True)
             
             raw_size = result.get("file_size_kb")
             file_size = int(raw_size) if raw_size is not None else 0
-            created_date = result.get("created_at", "알 수 없음")[:10] if result.get("created_at") else "최근"
             
-            st.markdown(f"**{result['file_name']}**")
-            st.caption(f"🎯 유사도: {result['similarity']:.3f} · 💾 {file_size}KB")
+            # 2. 파일 이름과 3점 메뉴(⋮)를 가로로 나란히 배치
+            title_col, menu_col = st.columns([5, 1])
             
-            with st.popover("⚙️ 관리 옵션", use_container_width=True):
-                new_name = st.text_input("파일 이름 변경", value=result["file_name"], key=f"rename_in_search_{result['id']}")
-                if st.button("💾 이름 저장", key=f"rename_btn_search_{result['id']}", use_container_width=True):
-                    with st.spinner("저장 중..."):
+            with title_col:
+                st.markdown(f"**{result['file_name']}**")
+                st.caption(f"🎯 {result['similarity']:.2f} · 💾 {file_size}KB")
+            
+            with menu_col:
+                # 커다란 버튼 대신 작은 3점(⋮) 기호로 팝오버 생성
+                with st.popover("⋮"):
+                    # [기능 1] 이름 변경
+                    new_name = st.text_input("이름 변경", value=result["file_name"], key=f"rn_src_{result['id']}")
+                    if st.button("💾 저장", key=f"rn_btn_src_{result['id']}", use_container_width=True):
                         supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", result["id"]).execute()
-                        st.success("변경 완료!")
+                        st.toast("이름이 변경되었습니다!", icon="✅")
                         time.sleep(0.5)
                         st.rerun()
-                
-                st.divider()
-                
-                img_data = requests.get(result["file_path"]).content
-                st.download_button(
-                    label="📥 다운로드",
-                    data=img_data,
-                    file_name=result["file_name"],
-                    mime="image/jpeg",
-                    key=f"dl_search_{result['id']}",
-                    use_container_width=True,
-                )
+                    
+                    st.divider()
+                    
+                    # [기능 2] 다운로드
+                    img_data = requests.get(result["file_path"]).content
+                    st.download_button(
+                        label="📥 다운로드",
+                        data=img_data,
+                        file_name=result["file_name"],
+                        mime="image/jpeg",
+                        key=f"dl_src_{result['id']}",
+                        use_container_width=True,
+                    )
+                    
+                    # [기능 3] 영구 삭제 (검색 탭에도 추가)
+                    if st.button("🗑️ 삭제", key=f"del_src_{result['id']}", use_container_width=True, type="primary"):
+                        storage_filename = result["file_path"].split("/")[-1]
+                        supabase.storage.from_("images").remove([storage_filename])
+                        supabase.table("image_embeddings").delete().eq("id", result["id"]).execute()
+                        st.toast("삭제 완료!", icon="🗑️")
+                        time.sleep(0.5)
+                        st.rerun()
         except Exception:
             st.error("이미지 로드 실패")
 
@@ -193,42 +209,47 @@ def render_manage_card(record):
         file_size = int(raw_size) if raw_size is not None else 0
         created_date = record.get("created_at", "알 수 없음")[:10] if record.get("created_at") else "기존 데이터"
         
-        st.markdown(f"**{record['file_name']}**")
-        st.caption(f"📅 {created_date} · 💾 {file_size}KB")
+        # 파일 이름과 3점 메뉴(⋮)를 가로로 나란히 배치
+        title_col, menu_col = st.columns([5, 1])
+        
+        with title_col:
+            st.markdown(f"**{record['file_name']}**")
+            st.caption(f"📅 {created_date} · 💾 {file_size}KB")
 
-        with st.popover("⚙️ 관리 옵션", use_container_width=True):
-            new_name = st.text_input("파일 이름 변경", value=record["file_name"], key=f"rename_in_manage_{record['id']}")
-            if st.button("💾 이름 저장", key=f"rename_btn_manage_{record['id']}", use_container_width=True):
-                with st.spinner("저장 중..."):
+        with menu_col:
+            with st.popover("⋮"):
+                # [기능 1] 이름 변경
+                new_name = st.text_input("이름 변경", value=record["file_name"], key=f"rn_mng_{record['id']}")
+                if st.button("💾 저장", key=f"rn_btn_mng_{record['id']}", use_container_width=True):
                     supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", record["id"]).execute()
-                    st.success("변경 완료!")
+                    st.toast("이름이 변경되었습니다!", icon="✅")
                     time.sleep(0.5)
                     st.rerun()
-            
-            st.divider()
-            
-            try:
-                img_data = requests.get(record["file_path"]).content
-                st.download_button(
-                    label="📥 다운로드",
-                    data=img_data,
-                    file_name=record["file_name"],
-                    mime="image/jpeg",
-                    key=f"dl_manage_{record['id']}",
-                    use_container_width=True,
-                )
-            except Exception:
-                st.button("다운로드 불가", disabled=True, key=f"disabled_{record['id']}", use_container_width=True)
-            
-            if st.button("🗑️ 영구 삭제", key=f"del_{record['id']}", use_container_width=True, type="primary"):
-                with st.spinner("삭제 중..."):
+                
+                st.divider()
+                
+                # [기능 2] 다운로드
+                try:
+                    img_data = requests.get(record["file_path"]).content
+                    st.download_button(
+                        label="📥 다운로드",
+                        data=img_data,
+                        file_name=record["file_name"],
+                        mime="image/jpeg",
+                        key=f"dl_mng_{record['id']}",
+                        use_container_width=True,
+                    )
+                except Exception:
+                    st.button("다운로드 불가", disabled=True, key=f"disabled_{record['id']}", use_container_width=True)
+                
+                # [기능 3] 영구 삭제
+                if st.button("🗑️ 삭제", key=f"del_mng_{record['id']}", use_container_width=True, type="primary"):
                     storage_filename = record["file_path"].split("/")[-1]
                     supabase.storage.from_("images").remove([storage_filename])
                     supabase.table("image_embeddings").delete().eq("id", record["id"]).execute()
-                    st.success("삭제되었습니다!")
+                    st.toast("삭제 완료!", icon="🗑️")
                     time.sleep(0.5)
                     st.rerun()
-
 
 # =====================================================================
 # 화면 탭 구성
