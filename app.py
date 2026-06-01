@@ -59,24 +59,24 @@ supabase = init_supabase()
 
 
 # 🚀 [기능 1] 라디오 버튼 선택에 따라 모델을 동적으로 캐싱 및 로드하는 함수
-# 스위치를 누를 때마다 이 함수가 실행되며 자동으로 로딩 스피너가 표시됩니다.
 @st.cache_resource(show_spinner="☁️ 선택한 AI 모델(768차원)의 가중치를 메모리에 로드 중입니다...")
 def load_ai_model(use_custom):
     if use_custom:
         try:
             processor = AutoProcessor.from_pretrained(HF_REPO_ID)
             model = AutoModel.from_pretrained(HF_REPO_ID).to(device)
-            return processor, model, "Custom_Trained_768 (맞춤형)"
+            # 💡 커스텀 모델 선택 시 허깅페이스 전체 경로 출력
+            return processor, model, HF_REPO_ID
         except Exception as e:
             st.error("아직 커스텀 모델이 허깅페이스에 업로드되지 않았습니다. 파인튜닝을 먼저 진행해주세요!")
-            # 오류 발생 시 안전하게 기본 모델로 폴백
             processor = AutoProcessor.from_pretrained("Bingsu/clip-vit-large-patch14-ko")
             model = AutoModel.from_pretrained("Bingsu/clip-vit-large-patch14-ko").to(device)
-            return processor, model, "Base_Large_768 (기본형)"
+            return processor, model, "Bingsu/clip-vit-large-patch14-ko"
     else:
         processor = AutoProcessor.from_pretrained("Bingsu/clip-vit-large-patch14-ko")
         model = AutoModel.from_pretrained("Bingsu/clip-vit-large-patch14-ko").to(device)
-        return processor, model, "Base_Large_768 (기본형)"
+        # 💡 기본 모델 선택 시 허깅페이스 전체 경로 출력
+        return processor, model, "Bingsu/clip-vit-large-patch14-ko"
 
 
 st.markdown('<div class="main-title">🔍 자연어 클라우드 갤러리</div>', unsafe_allow_html=True)
@@ -102,12 +102,12 @@ with st.sidebar:
     st.caption("• 스크래치 난 부품")
     st.caption("• 도로 위 하얀 자동차")
 
-# 선택된 값에 따라 모델 로드 (캐싱되어 있어 전환 속도가 빠릅니다)
+# 선택된 값에 따라 모델 로드
 processor, model, model_status = load_ai_model(is_custom)
 
 with st.sidebar:
     st.divider()
-    st.info(f"현재 가동 중: {model_status}")
+    st.info(f"현재 가동 중:\n**{model_status}**")
 
 
 def render_search_card(result):
@@ -315,7 +315,6 @@ with tab_upload:
             )
 
         if btn_save_only or btn_save_and_train:
-            # 1. 파일 및 벡터 저장 스피너
             with st.spinner("이미지 업로드 및 768차원 임베딩 분석 중..."):
                 success_count = 0
                 for idx, uploaded_file in enumerate(uploaded_files):
@@ -372,21 +371,18 @@ with tab_upload:
                 time.sleep(2)
                 st.rerun()
 
-            # 🚀 [기능 2] 훈련 과정을 실시간으로 추적하는 동적 상태 표시바 (Polling)
             if btn_save_and_train:
                 new_version = f"v_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}"
                 supabase.table("training_jobs").insert(
                     {"status": "pending", "model_version": new_version}
                 ).execute()
 
-                # st.status를 활용하여 훈련 상태를 실시간으로 UI에 업데이트
                 with st.status("🚀 MLOps 파인튜닝 파이프라인 가동 중...", expanded=True) as status:
                     st.write("1. 📥 클라우드 데이터베이스에 학습 명령 전송 완료")
                     st.write("2. ⏳ 로컬 GPU 서버(train.py)의 작업 시작을 대기 중입니다...")
                     
-                    # 훈련소의 상태 변경을 감지하는 무한 루프 (폴링)
                     while True:
-                        time.sleep(3) # DB 과부하를 막기 위해 3초 대기
+                        time.sleep(3)
                         check_res = supabase.table("training_jobs").select("status").eq("model_version", new_version).execute()
                         
                         if check_res.data:
@@ -401,11 +397,10 @@ with tab_upload:
                                 status.update(label="❌ 파인튜닝 실패 (로컬 터미널 로그를 확인하세요)", state="error", expanded=False)
                                 break
 
-                # 학습 완료 메시지 및 안내
                 st.success("🎉 파인튜닝이 모두 완료되었습니다!")
-                st.info("💡 좌측 사이드바에서 '커스텀 맞춤형 모델' 라디오 버튼을 선택하여 똑똑해진 결과를 확인하세요.")
+                st.info("💡 좌측 사이드바에서 '2. 커스텀 맞춤형 모델'을 선택하여 똑똑해진 결과를 확인하세요.")
                 st.session_state.uploader_key = str(uuid.uuid4())
-                st.cache_resource.clear() # 다음 로드를 위해 캐시 초기화
+                st.cache_resource.clear() 
 
 
 # [탭 3] 관리 기능
