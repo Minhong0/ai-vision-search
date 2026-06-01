@@ -26,73 +26,34 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-    /* 1. 기본 타이틀 디자인 */
-    .main-title { font-size: 2.2rem; font-weight: 800; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; padding: 1rem 0 0.2rem 0; }
+    .main-title { font-size: 2.2rem; font-weight: 800; text-align: center; }
     .subtitle { text-align: center; color: #888; font-size: 0.95rem; margin-bottom: 1.8rem; }
     
-    /* 📱 2. 이미지 1:1 강제 비율 및 둥근 모서리 (st.image 적용) */
+    /* 1. 이미지 1:1 강제 비율 및 둥근 모서리 */
     [data-testid="stImage"] img {
         aspect-ratio: 1 / 1 !important;
         object-fit: cover !important;
         border-radius: 8px !important;
     }
     
-    /* 📱 3. 각 사진이 들어가는 영역(Column) 설정 */
-    [data-testid="column"] {
-        position: relative !important;
-        padding: 4px !important;
-    }
+    /* 2. 사진 위아래 간격 최소화 */
+    [data-testid="column"] { padding: 4px !important; }
+    div[data-testid="stVerticalBlock"] { gap: 0rem !important; }
     
-    /* 📱 4. [핵심] 팝오버를 감싸는 부모 껍데기를 통째로 공중부양 (평소엔 완벽 숨김) */
-    [data-testid="column"] > div:has([data-testid="stPopover"]) {
-        position: absolute !important;
-        bottom: 12px !important;
-        right: 12px !important;
-        opacity: 0 !important; /* 💡 마우스가 없을 땐 투명하게 숨김 */
-        transition: opacity 0.2s ease-in-out !important;
-        z-index: 999 !important;
-    }
-    
-    /* 📱 5. [핵심] 마우스가 사진(컬럼) 위로 올라가면 메뉴가 나타남! */
-    [data-testid="column"]:hover > div:has([data-testid="stPopover"]) {
-        opacity: 1 !important;
-    }
-    
-    /* 📱 6. 버튼을 까만 동그라미로 예쁘게 깎기 */
+    /* 3. 팝오버(⋮) 버튼 투명하고 깔끔하게 */
     [data-testid="stPopover"] > button {
-        background-color: rgba(0, 0, 0, 0.6) !important;
-        color: white !important;
+        background-color: transparent !important;
         border: none !important;
-        border-radius: 50% !important; /* 완벽한 원형 */
-        width: 32px !important;
-        height: 32px !important;
-        min-height: 32px !important;
-        padding: 0 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
-    }
-    
-    /* 마우스 올렸을 때 버튼 색상 조금 진해짐 */
-    [data-testid="stPopover"] > button:hover {
-        background-color: rgba(0, 0, 0, 0.9) !important;
-    }
-    
-    /* 📱 7. 보기 싫은 화살표(v) 강제 삭제 */
-    [data-testid="stPopover"] > button svg {
-        display: none !important;
-    }
-    
-    /* 📱 8. ⋮ 글자 중앙 정렬 및 크기 조정 */
-    [data-testid="stPopover"] > button p {
+        color: #888 !important;
         font-size: 1.2rem !important;
         font-weight: bold !important;
-        margin: 0 !important;
-        line-height: 1 !important;
+        padding: 0 !important;
+        min-height: 0 !important;
     }
-
-    div[data-stale="true"] { opacity: 1 !important; filter: none !important; transition: none !important; }
+    [data-testid="stPopover"] > button:hover {
+        color: #000 !important;
+        background-color: transparent !important;
+    }
 </style>
     """,
     unsafe_allow_html=True,
@@ -195,90 +156,74 @@ with st.sidebar:
 # =====================================================================
 def render_search_card(result):
     try:
-        # 1. 사진 렌더링 (Streamlit 기본 함수 사용 -> 클릭 시 전체화면 확대됨!)
+        # 1. 꽉 찬 이미지 (클릭 시 확대됨)
         st.image(result["file_path"], use_container_width=True)
         
-        raw_size = result.get("file_size_kb")
-        file_size = int(raw_size) if raw_size is not None else 0
-        
-        # 2. 마우스를 올릴 때만 나타나는 [⋮] 메뉴 (내부 요소)
-        with st.popover("⋮"):
+        # 2. 이미지 바로 아래 정보와 메뉴 배치
+        col_title, col_menu = st.columns([5, 1])
+        with col_title:
             st.markdown(f"**{result['file_name']}**")
-            st.caption(f"🎯 유사도: {result['similarity']:.3f} · 💾 {file_size}KB")
             
-            new_name = st.text_input("이름 변경", value=result["file_name"], key=f"rn_src_{result['id']}")
-            if st.button("💾 저장", key=f"rn_btn_src_{result['id']}", use_container_width=True):
-                supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", result["id"]).execute()
-                st.toast("이름이 변경되었습니다!", icon="✅")
+        with col_menu:
+            with st.popover("⋮"):
+                raw_size = result.get("file_size_kb", 0)
+                st.caption(f"🎯 {result['similarity']:.3f} · 💾 {int(raw_size)}KB")
+                
+                new_name = st.text_input("이름 변경", value=result["file_name"], key=f"rn_src_{result['id']}")
+                if st.button("💾 저장", key=f"rn_btn_src_{result['id']}", use_container_width=True):
+                    supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", result["id"]).execute()
+                    st.toast("변경 완료!")
+                    time.sleep(0.5)
+                    st.rerun()
+                
+                st.divider()
+                
+                img_data = requests.get(result["file_path"]).content
+                st.download_button("📥 다운로드", data=img_data, file_name=result["file_name"], mime="image/jpeg", key=f"dl_src_{result['id']}", use_container_width=True)
+                
+                if st.button("🗑️ 삭제", key=f"del_src_{result['id']}", use_container_width=True, type="primary"):
+                    supabase.storage.from_("images").remove([result["file_path"].split("/")[-1]])
+                    supabase.table("image_embeddings").delete().eq("id", result["id"]).execute()
+                    st.toast("삭제 완료!")
+                    time.sleep(0.5)
+                    st.rerun()
+    except Exception:
+        st.error("이미지 에러")
+
+def render_manage_card(record):
+    st.image(record["file_path"], use_container_width=True)
+    
+    col_title, col_menu = st.columns([5, 1])
+    with col_title:
+        st.markdown(f"**{record['file_name']}**")
+        
+    with col_menu:
+        with st.popover("⋮"):
+            raw_size = record.get("file_size_kb", 0)
+            created_date = record.get("created_at", "최근")[:10]
+            st.caption(f"📅 {created_date} · 💾 {int(raw_size)}KB")
+
+            new_name = st.text_input("이름 변경", value=record["file_name"], key=f"rn_mng_{record['id']}")
+            if st.button("💾 저장", key=f"rn_btn_mng_{record['id']}", use_container_width=True):
+                supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", record["id"]).execute()
+                st.toast("변경 완료!")
                 time.sleep(0.5)
                 st.rerun()
             
             st.divider()
             
-            img_data = requests.get(result["file_path"]).content
-            st.download_button(
-                label="📥 다운로드",
-                data=img_data,
-                file_name=result["file_name"],
-                mime="image/jpeg",
-                key=f"dl_src_{result['id']}",
-                use_container_width=True,
-            )
+            try:
+                img_data = requests.get(record["file_path"]).content
+                st.download_button("📥 다운로드", data=img_data, file_name=record["file_name"], mime="image/jpeg", key=f"dl_mng_{record['id']}", use_container_width=True)
+            except:
+                pass
             
-            if st.button("🗑️ 삭제", key=f"del_src_{result['id']}", use_container_width=True, type="primary"):
-                storage_filename = result["file_path"].split("/")[-1]
-                supabase.storage.from_("images").remove([storage_filename])
-                supabase.table("image_embeddings").delete().eq("id", result["id"]).execute()
-                st.toast("삭제 완료!", icon="🗑️")
+            if st.button("🗑️ 삭제", key=f"del_mng_{record['id']}", use_container_width=True, type="primary"):
+                supabase.storage.from_("images").remove([record["file_path"].split("/")[-1]])
+                supabase.table("image_embeddings").delete().eq("id", record["id"]).execute()
+                st.toast("삭제 완료!")
                 time.sleep(0.5)
                 st.rerun()
-    except Exception:
-        st.error("이미지 에러")
-
-
-def render_manage_card(record):
-    # 1. 사진 렌더링 (클릭 시 확대)
-    st.image(record["file_path"], use_container_width=True)
-    
-    raw_size = record.get("file_size_kb")
-    file_size = int(raw_size) if raw_size is not None else 0
-    created_date = record.get("created_at", "알 수 없음")[:10] if record.get("created_at") else "기존 데이터"
-    
-    # 2. 마우스를 올릴 때만 나타나는 [⋮] 메뉴
-    with st.popover("⋮"):
-        st.markdown(f"**{record['file_name']}**")
-        st.caption(f"📅 {created_date} · 💾 {file_size}KB")
-
-        new_name = st.text_input("이름 변경", value=record["file_name"], key=f"rn_mng_{record['id']}")
-        if st.button("💾 저장", key=f"rn_btn_mng_{record['id']}", use_container_width=True):
-            supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", record["id"]).execute()
-            st.toast("이름이 변경되었습니다!", icon="✅")
-            time.sleep(0.5)
-            st.rerun()
-        
-        st.divider()
-        
-        try:
-            img_data = requests.get(record["file_path"]).content
-            st.download_button(
-                label="📥 다운로드",
-                data=img_data,
-                file_name=record["file_name"],
-                mime="image/jpeg",
-                key=f"dl_mng_{record['id']}",
-                use_container_width=True,
-            )
-        except Exception:
-            st.button("다운로드 불가", disabled=True, key=f"disabled_{record['id']}", use_container_width=True)
-        
-        if st.button("🗑️ 삭제", key=f"del_mng_{record['id']}", use_container_width=True, type="primary"):
-            storage_filename = record["file_path"].split("/")[-1]
-            supabase.storage.from_("images").remove([storage_filename])
-            supabase.table("image_embeddings").delete().eq("id", record["id"]).execute()
-            st.toast("삭제 완료!", icon="🗑️")
-            time.sleep(0.5)
-            st.rerun()
-
 # =====================================================================
 # 화면 탭 구성
 # =====================================================================
