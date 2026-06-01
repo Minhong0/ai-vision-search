@@ -266,7 +266,7 @@ with tab_search:
             st.session_state.display_count = 5
             st.session_state.last_query = query
 
-        with st.spinner("AI가 768차원 고성능 분석 중..."):
+        with st.spinner("AI 분석 중..."):
             try:
                 start_date_str = start_date.strftime("%Y-%m-%d") if start_date else None
                 end_date_str = end_date.strftime("%Y-%m-%d") if end_date else None
