@@ -191,19 +191,18 @@ with st.sidebar:
 
 
 # =====================================================================
-# 📇 삼성 갤러리 룩: 클릭 시 확대 + 호버 시 메뉴 등장
+# 📇 사진 클릭 시 확대 + 호버 시에만 나타나는 숨김 메뉴
 # =====================================================================
 def render_search_card(result):
     try:
-        # 1. 스트림릿 기본 이미지 출력 (클릭 시 전체화면 확대 기능 활성화)
+        # 1. 사진 렌더링 (Streamlit 기본 함수 사용 -> 클릭 시 전체화면 확대됨!)
         st.image(result["file_path"], use_container_width=True)
         
         raw_size = result.get("file_size_kb")
         file_size = int(raw_size) if raw_size is not None else 0
         
-        # 2. 마우스를 올릴 때만 나타나는 [⋮] 숨김 메뉴
+        # 2. 마우스를 올릴 때만 나타나는 [⋮] 메뉴 (내부 요소)
         with st.popover("⋮"):
-            # 파일 정보는 메뉴를 눌렀을 때 팝업창 안에서 보이게 처리
             st.markdown(f"**{result['file_name']}**")
             st.caption(f"🎯 유사도: {result['similarity']:.3f} · 💾 {file_size}KB")
             
@@ -238,14 +237,14 @@ def render_search_card(result):
 
 
 def render_manage_card(record):
-    # 1. 스트림릿 기본 이미지 출력 (클릭 시 전체화면 확대 기능 활성화)
+    # 1. 사진 렌더링 (클릭 시 확대)
     st.image(record["file_path"], use_container_width=True)
     
     raw_size = record.get("file_size_kb")
     file_size = int(raw_size) if raw_size is not None else 0
     created_date = record.get("created_at", "알 수 없음")[:10] if record.get("created_at") else "기존 데이터"
     
-    # 2. 마우스를 올릴 때만 나타나는 [⋮] 숨김 메뉴
+    # 2. 마우스를 올릴 때만 나타나는 [⋮] 메뉴
     with st.popover("⋮"):
         st.markdown(f"**{record['file_name']}**")
         st.caption(f"📅 {created_date} · 💾 {file_size}KB")
