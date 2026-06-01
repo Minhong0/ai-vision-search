@@ -32,71 +32,63 @@ st.markdown(
     .stTabs [data-baseweb="tab-list"] { gap: 0.4rem; }
     .stTabs [data-baseweb="tab"] { height: 44px; border-radius: 12px; padding: 0 14px; }
     
-    /* 📱 1. 이미지 크기 1:1 통일 */
+    /* 📱 1. 이미지 비율 1:1 통일 및 모서리 둥글게 */
     [data-testid="stImage"] img {
         aspect-ratio: 1 / 1 !important;
         object-fit: cover !important;
-        border-radius: 8px !important;
+        border-radius: 12px !important;
     }
     
-    /* 📱 2. 컬럼 패딩 축소 (사진을 다닥다닥 붙임) */
+    /* 📱 2. 사진들 다닥다닥 붙이기 */
     [data-testid="column"] {
-        padding: 4px !important;
-    }
-    
-    /* 📱 3. [핵심] 메뉴(⋮)를 사진 안쪽(우측 하단)으로 강제로 끌어올리기 */
-    div[data-testid="stPopover"] {
-        margin-top: -45px !important; 
-        margin-right: 8px !important; 
-        display: flex !important;
-        justify-content: flex-end !important;
-        position: relative !important;
-        z-index: 999 !important;
-        height: 0px !important; /* 💡 버튼 아래에 불필요한 빈 공간이 생기지 않도록 함 */
-    }
-    
-    /* (hover 시 나타나는 코드는 모바일을 위해 삭제했습니다!) */
-    
-    /* 📱 4. 팝오버(⋮) 버튼을 반투명하게 디자인하여 항상 살짝 떠 있게 만듦 */
-    div[data-testid="stPopover"] > button {
-        background-color: rgba(0, 0, 0, 0.4) !important; /* 💡 은은한 반투명 검정 배경 */
-        color: rgba(255, 255, 255, 0.9) !important;      /* 💡 하얀색 텍스트 */
-        border: none !important;
-        border-radius: 50% !important; /* 💡 완벽한 동그라미 모양 */
-        width: 32px !important;
-        height: 32px !important;
-        padding: 0 !important;
-        min-height: 0 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important; /* 💡 살짝 떠 보이게 그림자 추가 */
-        transition: background-color 0.2s !important;
-    }
-    
-    /* PC에서 마우스를 올렸을 때만 버튼이 조금 더 진해짐 */
-    div[data-testid="stPopover"] > button:hover {
-        background-color: rgba(0, 0, 0, 0.8) !important;
-    }
-    
-    /* 📱 5. 팝오버(⋮) 버튼 자체를 작고 반투명하게 디자인 */
-    div[data-testid="stPopover"] > button {
-        background-color: rgba(0, 0, 0, 0.6) !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 50% !important;
-        width: 32px !important;
-        height: 32px !important;
-        padding: 0 !important;
-        min-height: 0 !important;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    div[data-testid="stPopover"] > button:hover {
-        background-color: rgba(0, 0, 0, 0.9) !important;
+        padding: 5px !important;
     }
 
+    /* 📱 3. [핵심] 팝오버 메뉴 강제 멱살캐리 (위로 당기고 우측 정렬) */
+    div.element-container:has(div[data-testid="stPopover"]) {
+        margin-top: -55px !important; /* 사진 안쪽으로 55px 끌어올림 */
+        margin-bottom: 20px !important;
+        display: flex !important;
+        justify-content: flex-end !important; /* 우측 구석으로 짱박기 */
+        padding-right: 10px !important; /* 우측 여백 */
+        z-index: 999 !important;
+    }
+
+    /* 📱 4. 버튼 디자인 (반투명한 검은색 원형) */
+    div[data-testid="stPopover"] > button {
+        background-color: rgba(0, 0, 0, 0.5) !important; /* 반투명 검정 */
+        color: white !important;
+        border: 1px solid rgba(255, 255, 255, 0.3) !important;
+        border-radius: 50% !important; /* 완벽한 동그라미 */
+        width: 36px !important;
+        height: 36px !important;
+        min-height: 36px !important; /* Streamlit 뚱뚱한 기본 높이 무시 */
+        padding: 0 !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3) !important;
+    }
+
+    /* 📱 5. 마우스 올렸을 때(또는 터치 시) 버튼 진해짐 */
+    div[data-testid="stPopover"] > button:hover {
+        background-color: rgba(0, 0, 0, 0.8) !important;
+        border: 1px solid rgba(255, 255, 255, 0.8) !important;
+    }
+
+    /* 📱 6. [중요] 버튼 옆에 생기는 꼴보기 싫은 🔽 화살표 아이콘 삭제! */
+    div[data-testid="stPopover"] > button svg {
+        display: none !important;
+    }
+
+    /* 📱 7. ⋮ 글자 굵게 & 정중앙 정렬 */
+    div[data-testid="stPopover"] > button p {
+        font-size: 1.4rem !important;
+        font-weight: bold !important;
+        line-height: 1 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: center !important;
+    }
+
+    /* 화면 깜빡임 방지 */
     div[data-stale="true"] { opacity: 1 !important; filter: none !important; transition: none !important; }
 </style>
     """,
