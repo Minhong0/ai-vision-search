@@ -9,6 +9,7 @@ from PIL import Image
 from transformers import AutoProcessor, AutoModel
 from supabase import create_client, Client
 
+# 본인의 허깅페이스 레포지토리 이름
 HF_REPO_ID = "Rusom/my-custom-factory-clip"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -19,7 +20,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# 💡 [수정됨] 갤러리 이미지 크기 통일 및 Streamlit 고유의 반투명(Stale) 현상 강제 제거 CSS
+# 💡 [CSS 설정] 갤러리 이미지 크기 통일 및 화면 깜빡임/반투명 현상 강제 제거
 st.markdown(
     """
 <style>
@@ -43,7 +44,6 @@ st.markdown(
         border-radius: 8px;
         margin-bottom: 8px;
     }
-    /* 💡 Streamlit이 st.rerun() 시 화면을 투명하게 만드는 현상을 방지하는 CSS */
     div[data-stale="true"] {
         opacity: 1 !important;
         filter: none !important;
@@ -146,6 +146,9 @@ with st.sidebar:
     st.info(f"🟢 현재 가동 중:\n**{model_status}**")
 
 
+# =====================================================================
+# 📇 카드 렌더링 함수 (팝오버 메뉴 적용)
+# =====================================================================
 def render_search_card(result):
     with st.container(border=True):
         try:
@@ -154,17 +157,30 @@ def render_search_card(result):
             raw_size = result.get("file_size_kb")
             file_size = int(raw_size) if raw_size is not None else 0
             created_date = result.get("created_at", "알 수 없음")[:10] if result.get("created_at") else "최근"
+            
             st.markdown(f"**{result['file_name']}**")
-            st.caption(f"🎯 유사도: {result['similarity']:.3f} · 💾 {file_size}KB · 📅 {created_date}")
-            img_data = requests.get(result["file_path"]).content
-            st.download_button(
-                label="다운로드",
-                data=img_data,
-                file_name=result["file_name"],
-                mime="image/jpeg",
-                key=f"dl_search_{result['id']}",
-                use_container_width=True,
-            )
+            st.caption(f"🎯 유사도: {result['similarity']:.3f} · 💾 {file_size}KB")
+            
+            with st.popover("⚙️ 관리 옵션", use_container_width=True):
+                new_name = st.text_input("파일 이름 변경", value=result["file_name"], key=f"rename_in_search_{result['id']}")
+                if st.button("💾 이름 저장", key=f"rename_btn_search_{result['id']}", use_container_width=True):
+                    with st.spinner("저장 중..."):
+                        supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", result["id"]).execute()
+                        st.success("변경 완료!")
+                        time.sleep(0.5)
+                        st.rerun()
+                
+                st.divider()
+                
+                img_data = requests.get(result["file_path"]).content
+                st.download_button(
+                    label="📥 다운로드",
+                    data=img_data,
+                    file_name=result["file_name"],
+                    mime="image/jpeg",
+                    key=f"dl_search_{result['id']}",
+                    use_container_width=True,
+                )
         except Exception:
             st.error("이미지 로드 실패")
 
@@ -176,15 +192,25 @@ def render_manage_card(record):
         raw_size = record.get("file_size_kb")
         file_size = int(raw_size) if raw_size is not None else 0
         created_date = record.get("created_at", "알 수 없음")[:10] if record.get("created_at") else "기존 데이터"
+        
         st.markdown(f"**{record['file_name']}**")
-        st.caption(f"💾 {file_size}KB · 📅 {created_date}")
+        st.caption(f"📅 {created_date} · 💾 {file_size}KB")
 
-        btn1, btn2 = st.columns(2)
-        with btn1:
+        with st.popover("⚙️ 관리 옵션", use_container_width=True):
+            new_name = st.text_input("파일 이름 변경", value=record["file_name"], key=f"rename_in_manage_{record['id']}")
+            if st.button("💾 이름 저장", key=f"rename_btn_manage_{record['id']}", use_container_width=True):
+                with st.spinner("저장 중..."):
+                    supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", record["id"]).execute()
+                    st.success("변경 완료!")
+                    time.sleep(0.5)
+                    st.rerun()
+            
+            st.divider()
+            
             try:
                 img_data = requests.get(record["file_path"]).content
                 st.download_button(
-                    label="다운로드",
+                    label="📥 다운로드",
                     data=img_data,
                     file_name=record["file_name"],
                     mime="image/jpeg",
@@ -193,17 +219,20 @@ def render_manage_card(record):
                 )
             except Exception:
                 st.button("다운로드 불가", disabled=True, key=f"disabled_{record['id']}", use_container_width=True)
-        with btn2:
-            if st.button("삭제", key=f"del_{record['id']}", use_container_width=True):
+            
+            if st.button("🗑️ 영구 삭제", key=f"del_{record['id']}", use_container_width=True, type="primary"):
                 with st.spinner("삭제 중..."):
                     storage_filename = record["file_path"].split("/")[-1]
                     supabase.storage.from_("images").remove([storage_filename])
                     supabase.table("image_embeddings").delete().eq("id", record["id"]).execute()
                     st.success("삭제되었습니다!")
+                    time.sleep(0.5)
                     st.rerun()
 
 
+# =====================================================================
 # 화면 탭 구성
+# =====================================================================
 tab_search, tab_upload, tab_manage = st.tabs(["🔍 사진 검색", "☁️ 사진 업로드", "🗂️ 갤러리 관리"])
 
 
@@ -415,11 +444,11 @@ with tab_upload:
                     {"status": "pending", "model_version": new_version}
                 ).execute()
 
-                with st.status("🚀 MLOps 파인튜닝 파이프라인 가동 중...", expanded=True) as status:
-                    st.write("1. 📥 클라우드 데이터베이스에 학습 명령 전송 완료")
-                    st.write("2. ⏳ 로컬 GPU 서버(train.py)의 작업 시작을 대기 중입니다...")
+                with st.status("MLOps 파인튜닝 파이프라인 가동 중...", expanded=True) as status:
+                    st.write("1. 클라우드 데이터베이스에 학습 명령 전송 완료")
+                    st.write("2. 로컬 GPU 서버(train.py)의 작업 시작을 대기 중입니다...")
                     
-                    training_msg_shown = False # 💡 중복 출력 방지 플래그 추가
+                    training_msg_shown = False
                     
                     while True:
                         time.sleep(3)
@@ -429,8 +458,8 @@ with tab_upload:
                             current_status = check_res.data[0]['status']
                             
                             if current_status == "training":
-                                if not training_msg_shown: # 💡 한 번만 출력되도록 제어
-                                    st.write("3. 🧠 로컬 GPU에서 역전파(Backpropagation) 및 파인튜닝 진행 중...")
+                                if not training_msg_shown:
+                                    st.write("3. 로컬 GPU에서  파인튜닝 진행 중...")
                                     training_msg_shown = True
                             elif current_status == "completed":
                                 status.update(label="✅ 허깅페이스 클라우드 자동 배포 완료!", state="complete", expanded=False)
