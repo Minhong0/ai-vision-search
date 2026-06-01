@@ -92,7 +92,7 @@ def check_for_new_model():
         if latest_job.data:
             latest_version = latest_job.data[0]["model_version"]
             if st.session_state.get("current_model_version") != latest_version:
-                st.toast(f"🧠 새로운 AI 모델({latest_version}) 업로드 감지! 뇌를 실시간 교체합니다...", icon="✨")
+                st.toast(f"새로운 AI 모델({latest_version}) 업로드 감지! 뇌를 실시간 교체합니다...", icon="✨")
                 st.session_state.current_model_version = latest_version
                 st.cache_resource.clear()
                 st.rerun()
@@ -131,22 +131,13 @@ st.markdown('<div class="subtitle">커스텀 AI 검색 · 클라우드 업로드
 # 🎛️ 사이드바 UI
 # =====================================================================
 with st.sidebar:
-    st.header("📌 AI 뇌(Model) 스위칭")
-    st.caption("발표 시연용: 버튼을 눌러 AI의 성능 차이를 비교하세요.")
-    
+    st.header("모델선택")
     model_choice = st.radio(
         "테스트할 AI 모델 선택:",
-        ["1. 오리지널 범용 모델 (학습 전)", "2. 커스텀 맞춤형 모델 (학습 후)"],
+        ["1. 오리지널 모델 (학습 전)", "2. 커스텀 모델 (학습 후)"],
         key="model_choice",
-        on_change=lambda: st.cache_resource.clear() if st.session_state.model_choice != "2. 커스텀 맞춤형 모델 (학습 후)" else None
+        on_change=lambda: st.cache_resource.clear() if st.session_state.model_choice != "2. 커스텀 모델 (학습 후)" else None
     )
-    
-    st.divider()
-    st.caption("검색 팁")
-    st.caption("• 마스코트 이름")
-    st.caption("• 특수 객체 이름")
-    st.caption("• 스크래치 난 부품")
-
 with st.sidebar:
     st.divider()
     st.info(f"🟢 현재 가동 중:\n**{model_status}**")
