@@ -26,54 +26,57 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-    .main-title {
-        font-size: 2.2rem; font-weight: 800;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        text-align: center; padding: 1rem 0 0.2rem 0;
-    }
-    .subtitle {
-        text-align: center; color: #888; font-size: 0.95rem; margin-bottom: 1.8rem;
-    }
-    .stTabs [data-baseweb="tab-list"] { gap: 0.4rem; }
-    .stTabs [data-baseweb="tab"] {
-        height: 44px; border-radius: 12px; padding: 0 14px;
+    /* 타이틀 및 탭 디자인 */
+    .main-title { font-size: 2.2rem; font-weight: 800; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; padding: 1rem 0 0.2rem 0; }
+    .subtitle { text-align: center; color: #888; font-size: 0.95rem; margin-bottom: 1.8rem; }
+    
+    /* 📱 1. 이미지 크기 1:1 통일 (Streamlit 기본 이미지 태그 강제 수정) */
+    [data-testid="stImage"] img {
+        aspect-ratio: 1 / 1 !important;
+        object-fit: cover !important;
+        border-radius: 8px !important;
     }
     
-    /* 📱 삼성 갤러리 스타일 1:1 정사각형 타일형 썸네일 */
-    .gallery-img {
-        width: 100%;
-        aspect-ratio: 1 / 1;
-        object-fit: cover;
-        border-radius: 4px;
-        display: block;
-    }
-    
-    /* 💡 컬럼 사이의 여백(간격)을 대폭 줄여서 다닥다닥 붙임 */
-    div[data-testid="column"] {
+    /* 📱 2. 컬럼 패딩 축소 (사진들을 다닥다닥 붙이기) */
+    [data-testid="column"] {
         padding: 4px !important;
+        position: relative; /* 팝오버 메뉴의 절대 위치 기준점 */
     }
     
-    /* 💡 팝오버(⋮) 버튼을 투명하고 작게 만들어 이미지 바로 밑에 밀착 */
-    div[data-testid="stPopover"] > button {
-        padding: 0px !important;
-        min-height: 24px !important;
-        background-color: transparent !important;
-        border: none !important;
-        color: #94a3b8 !important;
-        margin-top: 2px !important;
+    /* 📱 3. 팝오버 메뉴 (점 3개) 기본 숨김 & 우측 하단 배치 */
+    [data-testid="column"] [data-testid="stPopover"] {
+        position: absolute;
+        bottom: 12px;
+        right: 12px;
+        opacity: 0; /* 평소엔 투명하게 숨김 */
+        transition: opacity 0.2s ease-in-out;
+        z-index: 10;
     }
-    div[data-testid="stPopover"] > button:hover {
-        color: #f8fafc !important;
-        background-color: transparent !important;
+    
+    /* 📱 4. 마우스 호버 시 팝오버 메뉴 나타남 */
+    [data-testid="column"]:hover [data-testid="stPopover"] {
+        opacity: 1; 
+    }
+    
+    /* 📱 5. 팝오버(⋮) 버튼 자체를 둥글고 반투명하게 디자인 */
+    [data-testid="stPopover"] > button {
+        background-color: rgba(0, 0, 0, 0.6) !important; /* 반투명 검정 배경 */
+        color: white !important;
+        border: none !important;
+        border-radius: 50% !important;
+        width: 32px !important;
+        height: 32px !important;
+        padding: 0 !important;
+        min-height: 0 !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    [data-testid="stPopover"] > button:hover {
+        background-color: rgba(0, 0, 0, 0.9) !important;
     }
 
-    /* 화면 새로고침 시 깜빡임/반투명해지는 현상 강제 제거 */
-    div[data-stale="true"] {
-        opacity: 1 !important;
-        filter: none !important;
-        transition: none !important;
-    }
+    div[data-stale="true"] { opacity: 1 !important; filter: none !important; transition: none !important; }
 </style>
     """,
     unsafe_allow_html=True,
@@ -172,18 +175,19 @@ with st.sidebar:
 
 
 # =====================================================================
-# 📇 삼성 갤러리 스타일 타일형 카드 렌더링 함수
+# 📇 삼성 갤러리 룩: 클릭 시 확대 + 호버 시 메뉴 등장
 # =====================================================================
 def render_search_card(result):
     try:
-        # 1. 테두리 없이 1:1 정사각형 썸네일 출력
-        st.markdown(f'<img src="{result["file_path"]}" class="gallery-img">', unsafe_allow_html=True)
+        # 1. 스트림릿 기본 이미지 출력 (클릭 시 전체화면 확대 기능 활성화)
+        st.image(result["file_path"], use_container_width=True)
         
         raw_size = result.get("file_size_kb")
         file_size = int(raw_size) if raw_size is not None else 0
         
-        # 2. 이미지 아래 투명한 [⋮] 버튼 생성
-        with st.popover("⋮", use_container_width=True):
+        # 2. 마우스를 올릴 때만 나타나는 [⋮] 숨김 메뉴
+        with st.popover("⋮"):
+            # 파일 정보는 메뉴를 눌렀을 때 팝업창 안에서 보이게 처리
             st.markdown(f"**{result['file_name']}**")
             st.caption(f"🎯 유사도: {result['similarity']:.3f} · 💾 {file_size}KB")
             
@@ -218,15 +222,15 @@ def render_search_card(result):
 
 
 def render_manage_card(record):
-    # 1. 테두리 없이 1:1 정사각형 썸네일 출력
-    st.markdown(f'<img src="{record["file_path"]}" class="gallery-img">', unsafe_allow_html=True)
+    # 1. 스트림릿 기본 이미지 출력 (클릭 시 전체화면 확대 기능 활성화)
+    st.image(record["file_path"], use_container_width=True)
     
     raw_size = record.get("file_size_kb")
     file_size = int(raw_size) if raw_size is not None else 0
     created_date = record.get("created_at", "알 수 없음")[:10] if record.get("created_at") else "기존 데이터"
     
-    # 2. 이미지 아래 투명한 [⋮] 버튼 생성
-    with st.popover("⋮", use_container_width=True):
+    # 2. 마우스를 올릴 때만 나타나는 [⋮] 숨김 메뉴
+    with st.popover("⋮"):
         st.markdown(f"**{record['file_name']}**")
         st.caption(f"📅 {created_date} · 💾 {file_size}KB")
 
@@ -259,7 +263,6 @@ def render_manage_card(record):
             st.toast("삭제 완료!", icon="🗑️")
             time.sleep(0.5)
             st.rerun()
-
 
 # =====================================================================
 # 화면 탭 구성
