@@ -29,38 +29,41 @@ st.markdown(
     /* 타이틀 및 탭 디자인 */
     .main-title { font-size: 2.2rem; font-weight: 800; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; padding: 1rem 0 0.2rem 0; }
     .subtitle { text-align: center; color: #888; font-size: 0.95rem; margin-bottom: 1.8rem; }
+    .stTabs [data-baseweb="tab-list"] { gap: 0.4rem; }
+    .stTabs [data-baseweb="tab"] { height: 44px; border-radius: 12px; padding: 0 14px; }
     
-    /* 📱 1. 이미지 크기 1:1 통일 (Streamlit 기본 이미지 태그 강제 수정) */
+    /* 📱 1. 이미지 크기 1:1 통일 */
     [data-testid="stImage"] img {
         aspect-ratio: 1 / 1 !important;
         object-fit: cover !important;
         border-radius: 8px !important;
     }
     
-    /* 📱 2. 컬럼 패딩 축소 (사진들을 다닥다닥 붙이기) */
+    /* 📱 2. 컬럼 패딩 축소 (사진을 다닥다닥 붙임) */
     [data-testid="column"] {
         padding: 4px !important;
-        position: relative; /* 팝오버 메뉴의 절대 위치 기준점 */
     }
     
-    /* 📱 3. 팝오버 메뉴 (점 3개) 기본 숨김 & 우측 하단 배치 */
-    [data-testid="column"] [data-testid="stPopover"] {
-        position: absolute;
-        bottom: 12px;
-        right: 12px;
-        opacity: 0; /* 평소엔 투명하게 숨김 */
+    /* 📱 3. [핵심] 메뉴(⋮)를 사진 안쪽으로 강제로 끌어올리기 */
+    div[data-testid="stPopover"] {
+        margin-top: -45px !important; /* 위로 45px 멱살 잡고 끌어올림 (사진 위로 겹침) */
+        margin-right: 8px !important; 
+        display: flex;
+        justify-content: flex-end;    /* 우측 정렬 */
+        opacity: 0;                   /* 평소엔 투명하게 숨김 */
         transition: opacity 0.2s ease-in-out;
-        z-index: 10;
+        position: relative;
+        z-index: 99;
     }
     
-    /* 📱 4. 마우스 호버 시 팝오버 메뉴 나타남 */
-    [data-testid="column"]:hover [data-testid="stPopover"] {
+    /* 📱 4. 마우스 호버 시 숨겨진 메뉴 나타남 */
+    div[data-testid="column"]:hover div[data-testid="stPopover"] {
         opacity: 1; 
     }
     
-    /* 📱 5. 팝오버(⋮) 버튼 자체를 둥글고 반투명하게 디자인 */
-    [data-testid="stPopover"] > button {
-        background-color: rgba(0, 0, 0, 0.6) !important; /* 반투명 검정 배경 */
+    /* 📱 5. 팝오버(⋮) 버튼 자체를 작고 반투명하게 디자인 */
+    div[data-testid="stPopover"] > button {
+        background-color: rgba(0, 0, 0, 0.6) !important;
         color: white !important;
         border: none !important;
         border-radius: 50% !important;
@@ -72,7 +75,7 @@ st.markdown(
         align-items: center;
         justify-content: center;
     }
-    [data-testid="stPopover"] > button:hover {
+    div[data-testid="stPopover"] > button:hover {
         background-color: rgba(0, 0, 0, 0.9) !important;
     }
 
