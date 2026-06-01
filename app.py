@@ -444,9 +444,9 @@ with tab_upload:
                     {"status": "pending", "model_version": new_version}
                 ).execute()
 
-                with st.status("MLOps 파인튜닝 파이프라인 가동 중...", expanded=True) as status:
-                    st.write("1. 클라우드 데이터베이스에 학습 명령 전송 완료")
-                    st.write("2. 로컬 GPU 서버(train.py)의 작업 시작을 대기 중입니다...")
+                with st.status("🚀 MLOps 파인튜닝 파이프라인 가동 중...", expanded=True) as status:
+                    st.write("1. 📥 클라우드 데이터베이스에 학습 명령 전송 완료")
+                    st.write("2. ⏳ 로컬 GPU 서버(train.py)의 작업 시작을 대기 중입니다...")
                     
                     training_msg_shown = False
                     
@@ -459,7 +459,7 @@ with tab_upload:
                             
                             if current_status == "training":
                                 if not training_msg_shown:
-                                    st.write("3. 로컬 GPU에서  파인튜닝 진행 중...")
+                                    st.write("3. 🧠 로컬 GPU에서 역전파(Backpropagation) 및 파인튜닝 진행 중...")
                                     training_msg_shown = True
                             elif current_status == "completed":
                                 status.update(label="✅ 허깅페이스 클라우드 자동 배포 완료!", state="complete", expanded=False)
