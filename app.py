@@ -102,7 +102,7 @@ def check_for_new_model():
     return "v_base"
 
 
-@st.cache_resource(show_spinner="☁️ 선택한 AI 모델(768차원)의 가중치를 메모리에 로드 중입니다...")
+@st.cache_resource(show_spinner="모델 로딩중...")
 def load_ai_model(use_custom, version_tag):
     if use_custom:
         try:
@@ -140,7 +140,7 @@ with st.sidebar:
     )
 with st.sidebar:
     st.divider()
-    st.info(f"🟢 현재 가동 중:\n**{model_status}**")
+    st.info(f"현재 선택한 모델:\n**{model_status}**")
 
 
 # =====================================================================
