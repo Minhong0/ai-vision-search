@@ -319,8 +319,7 @@ with tab_search:
 
 # [탭 2] 업로드 기능
 with tab_upload:
-    st.subheader("📤 사진 업로드 및 MLOps")
-    st.caption("새로운 사진을 올리고 AI를 직접 가르쳐보세요. 훈련 진행 상황을 실시간으로 추적합니다.")
+    st.subheader("📤 사진 업로드 ")
 
     uploaded_files = st.file_uploader(
         "이미지 파일 선택 (여러 장 드래그 앤 드롭 가능)",
@@ -359,7 +358,7 @@ with tab_upload:
             )
 
         if btn_save_only or btn_save_and_train:
-            with st.spinner("이미지 업로드 및 768차원 임베딩 분석 중..."):
+            with st.spinner("이미지 업로드 및 분석 중..."):
                 success_count = 0
                 for idx, uploaded_file in enumerate(uploaded_files):
                     try:
@@ -437,7 +436,6 @@ with tab_upload:
                                 break
 
                 st.success("🎉 파인튜닝이 모두 완료되었습니다!")
-                st.info("💡 좌측 사이드바에서 '2. 커스텀 맞춤형 모델'을 선택하여 똑똑해진 결과를 확인하세요.")
                 st.session_state.uploader_key = str(uuid.uuid4())
                 st.cache_resource.clear() 
 
