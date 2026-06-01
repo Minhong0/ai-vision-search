@@ -19,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# 💡 [수정됨] 갤러리 이미지 크기 통일을 위한 CSS (gallery-img) 추가
+# 💡 [수정됨] 갤러리 이미지 크기 통일 및 Streamlit 고유의 반투명(Stale) 현상 강제 제거 CSS
 st.markdown(
     """
 <style>
@@ -42,6 +42,12 @@ st.markdown(
         object-fit: cover;
         border-radius: 8px;
         margin-bottom: 8px;
+    }
+    /* 💡 Streamlit이 st.rerun() 시 화면을 투명하게 만드는 현상을 방지하는 CSS */
+    div[data-stale="true"] {
+        opacity: 1 !important;
+        filter: none !important;
+        transition: none !important;
     }
 </style>
     """,
@@ -89,14 +95,12 @@ def check_for_new_model():
     return "v_base"
 
 
-# 🚀 [수정됨] 모델 로드 시 version_tag를 함께 받아서 상태 메세지에 표시
 @st.cache_resource(show_spinner="☁️ 선택한 AI 모델(768차원)의 가중치를 메모리에 로드 중입니다...")
 def load_ai_model(use_custom, version_tag):
     if use_custom:
         try:
             processor = AutoProcessor.from_pretrained(HF_REPO_ID)
             model = AutoModel.from_pretrained(HF_REPO_ID).to(device)
-            # 💡 커스텀 모델 선택 시 "레포이름 + 버전태그" 출력
             return processor, model, f"{HF_REPO_ID}\n(버전: {version_tag})"
         except Exception as e:
             st.error("아직 커스텀 모델이 허깅페이스에 업로드되지 않았습니다. 파인튜닝을 먼저 진행해주세요!")
@@ -110,7 +114,6 @@ def load_ai_model(use_custom, version_tag):
 
 
 current_version = check_for_new_model()
-# 💡 스위치 값과 함께 현재 버전을 넘겨줍니다.
 processor, model, model_status = load_ai_model("커스텀" in st.session_state.get("model_choice", "오리지널"), current_version)
 
 
@@ -129,17 +132,15 @@ with st.sidebar:
         ["1. 오리지널 범용 모델 (학습 전)", "2. 커스텀 맞춤형 모델 (학습 후)"],
         key="model_choice",
         on_change=lambda: st.cache_resource.clear() if st.session_state.model_choice != "2. 커스텀 맞춤형 모델 (학습 후)" else None
-        # 원활한 전환을 위한 편의 로직
     )
     is_custom = "커스텀" in model_choice
     
     st.divider()
     st.caption("검색 팁")
+    st.caption("• 마스코트 이름")
     st.caption("• 특수 객체 이름")
     st.caption("• 스크래치 난 부품")
-    st.caption("• 도로 위 하얀 자동차")
 
-# 💡 선택 후 실시간으로 변한 모델 상태 정보 출력
 with st.sidebar:
     st.divider()
     st.info(f"🟢 현재 가동 중:\n**{model_status}**")
@@ -148,7 +149,6 @@ with st.sidebar:
 def render_search_card(result):
     with st.container(border=True):
         try:
-            # 💡 [수정됨] st.image 대신 CSS 클래스가 적용된 html <img> 태그 사용 (크기 통일)
             st.markdown(f'<img src="{result["file_path"]}" class="gallery-img">', unsafe_allow_html=True)
             
             raw_size = result.get("file_size_kb")
@@ -171,7 +171,6 @@ def render_search_card(result):
 
 def render_manage_card(record):
     with st.container(border=True):
-        # 💡 [수정됨] 관리 탭의 이미지 크기도 통일
         st.markdown(f'<img src="{record["file_path"]}" class="gallery-img">', unsafe_allow_html=True)
         
         raw_size = record.get("file_size_kb")
@@ -215,7 +214,7 @@ with tab_search:
 
     q1, q2, q3 = st.columns([3, 1, 1])
     with q1:
-        query = st.text_input("검색어", placeholder="예: 안전모 쓴 작업자, 영수증, 바다", key="search_input")
+        query = st.text_input("검색어", placeholder="예: 인제대 마스코트, 안전모 쓴 작업자", key="search_input")
     with q2:
         match_threshold = st.slider("유사도 커트라인", 0.0, 0.4, 0.18, 0.01)
     with q3:
@@ -334,14 +333,13 @@ with tab_upload:
                 placeholder="예: 인제대 마스코트, 불량 부품 A...",
             )
 
-        # 💡 업로드 미리보기 이미지도 크기 통일
         for start in range(0, len(uploaded_files), 5):
             cols = st.columns(5)
             chunk = uploaded_files[start:start + 5]
             for col, file in zip(cols, chunk):
                 with col:
                     with st.container(border=True):
-                        st.image(file, use_container_width=True) # 로컬 파일은 st.image 유지
+                        st.image(file, use_container_width=True) 
                         st.caption(file.name)
 
         col_btn1, col_btn2 = st.columns(2)
@@ -421,6 +419,8 @@ with tab_upload:
                     st.write("1. 📥 클라우드 데이터베이스에 학습 명령 전송 완료")
                     st.write("2. ⏳ 로컬 GPU 서버(train.py)의 작업 시작을 대기 중입니다...")
                     
+                    training_msg_shown = False # 💡 중복 출력 방지 플래그 추가
+                    
                     while True:
                         time.sleep(3)
                         check_res = supabase.table("training_jobs").select("status").eq("model_version", new_version).execute()
@@ -429,7 +429,9 @@ with tab_upload:
                             current_status = check_res.data[0]['status']
                             
                             if current_status == "training":
-                                st.write("3. 🧠 로컬 GPU에서 역전파(Backpropagation) 및 파인튜닝 진행 중...")
+                                if not training_msg_shown: # 💡 한 번만 출력되도록 제어
+                                    st.write("3. 🧠 로컬 GPU에서 역전파(Backpropagation) 및 파인튜닝 진행 중...")
+                                    training_msg_shown = True
                             elif current_status == "completed":
                                 status.update(label="✅ 허깅페이스 클라우드 자동 배포 완료!", state="complete", expanded=False)
                                 break
