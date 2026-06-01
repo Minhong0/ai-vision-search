@@ -44,21 +44,39 @@ st.markdown(
         padding: 4px !important;
     }
     
-    /* 📱 3. [핵심] 메뉴(⋮)를 사진 안쪽으로 강제로 끌어올리기 */
+    /* 📱 3. [핵심] 메뉴(⋮)를 사진 안쪽(우측 하단)으로 강제로 끌어올리기 */
     div[data-testid="stPopover"] {
         margin-top: -45px !important; 
         margin-right: 8px !important; 
         display: flex !important;
         justify-content: flex-end !important;
-        opacity: 0 !important;        /* 💡 평소엔 투명하게 숨김 */
-        transition: opacity 0.2s ease-in-out !important;
         position: relative !important;
-        z-index: 999 !important;      /* 💡 사진 뒤로 숨지 않도록 무조건 최상단 배치 */
+        z-index: 999 !important;
+        height: 0px !important; /* 💡 버튼 아래에 불필요한 빈 공간이 생기지 않도록 함 */
     }
     
-    /* 📱 4. 마우스 호버 시 숨겨진 메뉴 나타남 */
-    div[data-testid="column"]:hover div[data-testid="stPopover"] {
-        opacity: 1 !important;        /* 💡 !important를 꼭 붙여야 나타납니다! */
+    /* (hover 시 나타나는 코드는 모바일을 위해 삭제했습니다!) */
+    
+    /* 📱 4. 팝오버(⋮) 버튼을 반투명하게 디자인하여 항상 살짝 떠 있게 만듦 */
+    div[data-testid="stPopover"] > button {
+        background-color: rgba(0, 0, 0, 0.4) !important; /* 💡 은은한 반투명 검정 배경 */
+        color: rgba(255, 255, 255, 0.9) !important;      /* 💡 하얀색 텍스트 */
+        border: none !important;
+        border-radius: 50% !important; /* 💡 완벽한 동그라미 모양 */
+        width: 32px !important;
+        height: 32px !important;
+        padding: 0 !important;
+        min-height: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important; /* 💡 살짝 떠 보이게 그림자 추가 */
+        transition: background-color 0.2s !important;
+    }
+    
+    /* PC에서 마우스를 올렸을 때만 버튼이 조금 더 진해짐 */
+    div[data-testid="stPopover"] > button:hover {
+        background-color: rgba(0, 0, 0, 0.8) !important;
     }
     
     /* 📱 5. 팝오버(⋮) 버튼 자체를 작고 반투명하게 디자인 */
