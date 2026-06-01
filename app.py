@@ -19,6 +19,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# 💡 [수정됨] 갤러리 이미지 크기 통일을 위한 CSS (gallery-img) 추가
 st.markdown(
     """
 <style>
@@ -34,6 +35,13 @@ st.markdown(
     .stTabs [data-baseweb="tab-list"] { gap: 0.4rem; }
     .stTabs [data-baseweb="tab"] {
         height: 44px; border-radius: 12px; padding: 0 14px;
+    }
+    .gallery-img {
+        width: 100%;
+        height: 180px;
+        object-fit: cover;
+        border-radius: 8px;
+        margin-bottom: 8px;
     }
 </style>
     """,
@@ -58,41 +66,70 @@ def init_supabase():
 supabase = init_supabase()
 
 
-# 🚀 [기능 1] 라디오 버튼 선택에 따라 모델을 동적으로 캐싱 및 로드하는 함수
+def check_for_new_model():
+    try:
+        latest_job = (
+            supabase.table("training_jobs")
+            .select("*")
+            .eq("status", "completed")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if latest_job.data:
+            latest_version = latest_job.data[0]["model_version"]
+            if st.session_state.get("current_model_version") != latest_version:
+                st.toast(f"🧠 새로운 AI 모델({latest_version}) 업로드 감지! 뇌를 실시간 교체합니다...", icon="✨")
+                st.session_state.current_model_version = latest_version
+                st.cache_resource.clear()
+                st.rerun()
+            return latest_version
+    except Exception:
+        pass
+    return "v_base"
+
+
+# 🚀 [수정됨] 모델 로드 시 version_tag를 함께 받아서 상태 메세지에 표시
 @st.cache_resource(show_spinner="☁️ 선택한 AI 모델(768차원)의 가중치를 메모리에 로드 중입니다...")
-def load_ai_model(use_custom):
+def load_ai_model(use_custom, version_tag):
     if use_custom:
         try:
             processor = AutoProcessor.from_pretrained(HF_REPO_ID)
             model = AutoModel.from_pretrained(HF_REPO_ID).to(device)
-            # 💡 커스텀 모델 선택 시 허깅페이스 전체 경로 출력
-            return processor, model, HF_REPO_ID
+            # 💡 커스텀 모델 선택 시 "레포이름 + 버전태그" 출력
+            return processor, model, f"{HF_REPO_ID}\n(버전: {version_tag})"
         except Exception as e:
             st.error("아직 커스텀 모델이 허깅페이스에 업로드되지 않았습니다. 파인튜닝을 먼저 진행해주세요!")
             processor = AutoProcessor.from_pretrained("Bingsu/clip-vit-large-patch14-ko")
             model = AutoModel.from_pretrained("Bingsu/clip-vit-large-patch14-ko").to(device)
-            return processor, model, "Bingsu/clip-vit-large-patch14-ko"
+            return processor, model, "Bingsu/clip-vit-large-patch14-ko\n(기본형)"
     else:
         processor = AutoProcessor.from_pretrained("Bingsu/clip-vit-large-patch14-ko")
         model = AutoModel.from_pretrained("Bingsu/clip-vit-large-patch14-ko").to(device)
-        # 💡 기본 모델 선택 시 허깅페이스 전체 경로 출력
-        return processor, model, "Bingsu/clip-vit-large-patch14-ko"
+        return processor, model, "Bingsu/clip-vit-large-patch14-ko\n(기본형)"
+
+
+current_version = check_for_new_model()
+# 💡 스위치 값과 함께 현재 버전을 넘겨줍니다.
+processor, model, model_status = load_ai_model("커스텀" in st.session_state.get("model_choice", "오리지널"), current_version)
 
 
 st.markdown('<div class="main-title">🔍 자연어 클라우드 갤러리</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">커스텀 AI 검색 · 클라우드 업로드 · 갤러리 관리</div>', unsafe_allow_html=True)
 
 # =====================================================================
-# 🎛️ 사이드바 UI: 모델 스위칭 컨트롤
+# 🎛️ 사이드바 UI
 # =====================================================================
 with st.sidebar:
     st.header("📌 AI 뇌(Model) 스위칭")
     st.caption("발표 시연용: 버튼을 눌러 AI의 성능 차이를 비교하세요.")
     
-    # 모델 선택 라디오 버튼
     model_choice = st.radio(
         "테스트할 AI 모델 선택:",
-        ["1. 오리지널 범용 모델 (학습 전)", "2. 커스텀 맞춤형 모델 (학습 후)"]
+        ["1. 오리지널 범용 모델 (학습 전)", "2. 커스텀 맞춤형 모델 (학습 후)"],
+        key="model_choice",
+        on_change=lambda: st.cache_resource.clear() if st.session_state.model_choice != "2. 커스텀 맞춤형 모델 (학습 후)" else None
+        # 원활한 전환을 위한 편의 로직
     )
     is_custom = "커스텀" in model_choice
     
@@ -102,18 +139,18 @@ with st.sidebar:
     st.caption("• 스크래치 난 부품")
     st.caption("• 도로 위 하얀 자동차")
 
-# 선택된 값에 따라 모델 로드
-processor, model, model_status = load_ai_model(is_custom)
-
+# 💡 선택 후 실시간으로 변한 모델 상태 정보 출력
 with st.sidebar:
     st.divider()
-    st.info(f"현재 가동 중:\n**{model_status}**")
+    st.info(f"🟢 현재 가동 중:\n**{model_status}**")
 
 
 def render_search_card(result):
     with st.container(border=True):
         try:
-            st.image(result["file_path"], use_container_width=True)
+            # 💡 [수정됨] st.image 대신 CSS 클래스가 적용된 html <img> 태그 사용 (크기 통일)
+            st.markdown(f'<img src="{result["file_path"]}" class="gallery-img">', unsafe_allow_html=True)
+            
             raw_size = result.get("file_size_kb")
             file_size = int(raw_size) if raw_size is not None else 0
             created_date = result.get("created_at", "알 수 없음")[:10] if result.get("created_at") else "최근"
@@ -134,7 +171,9 @@ def render_search_card(result):
 
 def render_manage_card(record):
     with st.container(border=True):
-        st.image(record["file_path"], use_container_width=True)
+        # 💡 [수정됨] 관리 탭의 이미지 크기도 통일
+        st.markdown(f'<img src="{record["file_path"]}" class="gallery-img">', unsafe_allow_html=True)
+        
         raw_size = record.get("file_size_kb")
         file_size = int(raw_size) if raw_size is not None else 0
         created_date = record.get("created_at", "알 수 없음")[:10] if record.get("created_at") else "기존 데이터"
@@ -295,13 +334,14 @@ with tab_upload:
                 placeholder="예: 인제대 마스코트, 불량 부품 A...",
             )
 
+        # 💡 업로드 미리보기 이미지도 크기 통일
         for start in range(0, len(uploaded_files), 5):
             cols = st.columns(5)
             chunk = uploaded_files[start:start + 5]
             for col, file in zip(cols, chunk):
                 with col:
                     with st.container(border=True):
-                        st.image(file, use_container_width=True)
+                        st.image(file, use_container_width=True) # 로컬 파일은 st.image 유지
                         st.caption(file.name)
 
         col_btn1, col_btn2 = st.columns(2)
