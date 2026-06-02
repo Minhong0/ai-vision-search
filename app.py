@@ -28,32 +28,65 @@ st.markdown(
 <style>
     .main-title { font-size: 2.2rem; font-weight: 800; text-align: center; }
     .subtitle { text-align: center; color: #888; font-size: 0.95rem; margin-bottom: 1.8rem; }
-    
-    /* 1. 이미지 1:1 강제 비율 및 둥근 모서리 */
+
+    /* 이미지 1:1 강제 비율 및 둥근 모서리 */
     [data-testid="stImage"] img {
         aspect-ratio: 1 / 1 !important;
         object-fit: cover !important;
         border-radius: 8px !important;
+        transition: filter 0.2s ease !important;
     }
-    
-    /* 💡 폭탄(gap: 0rem) 제거됨! 스트림릿 기본 여백은 그대로 둡니다. */
-    
-    /* 2. 팝오버(⋮) 버튼을 제목과 일직선이 되도록 예쁘게 정렬 */
-    [data-testid="stPopover"] > button {
-        background-color: transparent !important;
+
+    /* ===== 갤러리 카드 호버 오버레이 ===== */
+
+    /* 이미지가 있는 외부 컬럼 → 포지셔닝 컨텍스트로 설정 */
+    [data-testid="column"]:has([data-testid="stImage"]) {
+        position: relative !important;
+    }
+    [data-testid="column"]:has([data-testid="stImage"]) > div {
+        overflow: visible !important;
+    }
+
+    /* 내부 서브 컬럼은 포지셔닝 컨텍스트 해제 (absolute 기준이 외부 컬럼이 되도록) */
+    [data-testid="column"]:has([data-testid="stImage"]) [data-testid="column"] {
+        position: static !important;
+    }
+
+    /* 팝오버를 이미지 우상단에 absolute 배치 */
+    [data-testid="column"]:has([data-testid="stImage"]) [data-testid="stPopover"] {
+        position: absolute !important;
+        top: 8px !important;
+        right: 8px !important;
+        z-index: 10 !important;
+    }
+
+    /* 팝오버 버튼: 기본 숨김 + 반투명 어두운 스타일 */
+    [data-testid="column"]:has([data-testid="stImage"]) [data-testid="stPopover"] > button {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        transition: opacity 0.2s ease !important;
+        background-color: rgba(0, 0, 0, 0.55) !important;
+        color: #fff !important;
         border: none !important;
-        color: #888 !important;
-        font-size: 1.3rem !important; /* 점 3개 크기 살짝 키움 */
+        border-radius: 6px !important;
+        font-size: 1.1rem !important;
         font-weight: bold !important;
-        padding: 0 !important;
+        padding: 2px 8px !important;
         min-height: 0 !important;
-        margin-top: -5px !important; /* 제목(텍스트) 높이와 맞추기 위해 살짝 위로 올림 */
+        margin-top: 0 !important;
     }
-    [data-testid="stPopover"] > button:hover {
-        color: #000 !important;
-        background-color: transparent !important;
+
+    /* 카드 호버 시 팝오버 버튼 표시 */
+    [data-testid="column"]:has([data-testid="stImage"]):hover [data-testid="stPopover"] > button {
+        opacity: 1 !important;
+        pointer-events: auto !important;
     }
-    
+
+    /* 카드 호버 시 이미지 살짝 어둡게 (버튼 강조) */
+    [data-testid="column"]:has([data-testid="stImage"]):hover [data-testid="stImage"] img {
+        filter: brightness(0.82) !important;
+    }
+
     /* 화면 깜빡임 방지 */
     div[data-stale="true"] { opacity: 1 !important; filter: none !important; transition: none !important; }
 </style>
