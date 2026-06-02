@@ -108,6 +108,8 @@ if "last_query" not in st.session_state:
     st.session_state.last_query = ""
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = str(uuid.uuid4())
+if "menu_open" not in st.session_state:
+    st.session_state.menu_open = {}
 
 
 @st.cache_resource
@@ -185,7 +187,7 @@ with st.sidebar:
 
 
 # =====================================================================
-# 📇 카드 렌더링 함수 (사진 위 호버 오버레이 메뉴)
+# 📇 카드 렌더링 함수 (사진 위 호버 오버레이 메뉴 + Streamlit 팝오버)
 # =====================================================================
 def render_search_card(result):
     try:
@@ -196,15 +198,16 @@ def render_search_card(result):
         <div class="image-card" id="{card_id}">
             <img src="{result['file_path']}" alt="{result['file_name']}">
             <div class="image-overlay">
-                <button class="menu-button" onclick="document.getElementById('popover_btn_{result['id']}').click();">⋮</button>
+                <button class="menu-button" onclick="document.querySelector('[data-testid=stPopover]').click();" title="메뉴">⋮</button>
             </div>
         </div>
         """, unsafe_allow_html=True)
         
         st.markdown(f"**{result['file_name']}**")
         
-        # 숨겨진 컨테이너에 팝오버 배치
-        with st.columns([1])[0]:
+        # 팝오버 (옆에 배치하면 안 보임)
+        col1, col2 = st.columns([1, 20])
+        with col1:
             with st.popover("⋮", key=f"popover_{result['id']}"):
                 raw_size = result.get("file_size_kb", 0)
                 st.caption(f"🎯 {result['similarity']:.3f} · 💾 {int(raw_size)}KB")
@@ -239,15 +242,16 @@ def render_manage_card(record):
         <div class="image-card" id="{card_id}">
             <img src="{record['file_path']}" alt="{record['file_name']}">
             <div class="image-overlay">
-                <button class="menu-button" onclick="document.getElementById('popover_btn_mng_{record['id']}').click();">⋮</button>
+                <button class="menu-button" onclick="document.querySelector('[data-testid=stPopover]').click();" title="메뉴">⋮</button>
             </div>
         </div>
         """, unsafe_allow_html=True)
         
         st.markdown(f"**{record['file_name']}**")
         
-        # 숨겨진 컨테이너에 팝오버 배치
-        with st.columns([1])[0]:
+        # 팝오버 (옆에 배치하면 안 보임)
+        col1, col2 = st.columns([1, 20])
+        with col1:
             with st.popover("⋮", key=f"popover_mng_{record['id']}"):
                 raw_size = record.get("file_size_kb", 0)
                 created_date = record.get("created_at", "최근")[:10]
