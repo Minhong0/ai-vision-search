@@ -38,17 +38,35 @@ st.markdown(
     
     /* 💡 폭탄(gap: 0rem) 제거됨! 스트림릿 기본 여백은 그대로 둡니다. */
     
-    /* 2. 팝오버(⋮) 버튼을 제목과 일직선이 되도록 예쁘게 정렬 */
+    /* 2. 이미지 카드 호버 효과 - 팝오버 버튼을 호버 시에만 표시 */
+    .image-card-container {
+        position: relative;
+        display: inline-block;
+        width: 100%;
+    }
+    
+    .image-card-container:hover .menu-button {
+        opacity: 1 !important;
+        visibility: visible !important;
+    }
+    
+    /* 3. 팝오버(⋮) 버튼을 기본적으로 숨기고 호버 시에만 표시 */
+    .menu-button {
+        opacity: 0 !important;
+        visibility: hidden !important;
+        transition: opacity 0.2s ease, visibility 0.2s ease !important;
+    }
+    
     [data-testid="stPopover"] > button {
         background-color: transparent !important;
         border: none !important;
         color: #888 !important;
-        font-size: 1.3rem !important; /* 점 3개 크기 살짝 키움 */
+        font-size: 1.3rem !important;
         font-weight: bold !important;
         padding: 0 !important;
         min-height: 0 !important;
-        margin-top: -5px !important; /* 제목(텍스트) 높이와 맞추기 위해 살짝 위로 올림 */
     }
+    
     [data-testid="stPopover"] > button:hover {
         color: #000 !important;
         background-color: transparent !important;
@@ -148,6 +166,9 @@ with st.sidebar:
 # =====================================================================
 def render_search_card(result):
     try:
+        # 이미지 카드를 감싸는 컨테이너
+        st.markdown(f'<div class="image-card-container">', unsafe_allow_html=True)
+        
         st.image(result["file_path"], use_container_width=True)
         
         col_title, col_menu = st.columns([5, 1])
@@ -155,6 +176,7 @@ def render_search_card(result):
             st.markdown(f"**{result['file_name']}**")
             
         with col_menu:
+            st.markdown('<div class="menu-button">', unsafe_allow_html=True)
             with st.popover("⋮"):
                 raw_size = result.get("file_size_kb", 0)
                 st.caption(f"🎯 {result['similarity']:.3f} · 💾 {int(raw_size)}KB")
@@ -177,43 +199,56 @@ def render_search_card(result):
                     st.toast("삭제 완료!")
                     time.sleep(0.5)
                     st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
     except Exception:
         st.error("이미지 에러")
 
 def render_manage_card(record):
-    st.image(record["file_path"], use_container_width=True)
-    
-    col_title, col_menu = st.columns([5, 1])
-    with col_title:
-        st.markdown(f"**{record['file_name']}**")
+    try:
+        # 이미지 카드를 감싸는 컨테이너
+        st.markdown(f'<div class="image-card-container">', unsafe_allow_html=True)
         
-    with col_menu:
-        with st.popover("⋮"):
-            raw_size = record.get("file_size_kb", 0)
-            created_date = record.get("created_at", "최근")[:10]
-            st.caption(f"📅 {created_date} · 💾 {int(raw_size)}KB")
+        st.image(record["file_path"], use_container_width=True)
+        
+        col_title, col_menu = st.columns([5, 1])
+        with col_title:
+            st.markdown(f"**{record['file_name']}**")
+            
+        with col_menu:
+            st.markdown('<div class="menu-button">', unsafe_allow_html=True)
+            with st.popover("⋮"):
+                raw_size = record.get("file_size_kb", 0)
+                created_date = record.get("created_at", "최근")[:10]
+                st.caption(f"📅 {created_date} · 💾 {int(raw_size)}KB")
 
-            new_name = st.text_input("이름 변경", value=record["file_name"], key=f"rn_mng_{record['id']}")
-            if st.button("💾 저장", key=f"rn_btn_mng_{record['id']}", use_container_width=True):
-                supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", record["id"]).execute()
-                st.toast("변경 완료!")
-                time.sleep(0.5)
-                st.rerun()
-            
-            st.divider()
-            
-            try:
-                img_data = requests.get(record["file_path"]).content
-                st.download_button("📥 다운로드", data=img_data, file_name=record["file_name"], mime="image/jpeg", key=f"dl_mng_{record['id']}", use_container_width=True)
-            except:
-                pass
-            
-            if st.button("🗑️ 삭제", key=f"del_mng_{record['id']}", use_container_width=True, type="primary"):
-                supabase.storage.from_("images").remove([record["file_path"].split("/")[-1]])
-                supabase.table("image_embeddings").delete().eq("id", record["id"]).execute()
-                st.toast("삭제 완료!")
-                time.sleep(0.5)
-                st.rerun()
+                new_name = st.text_input("이름 변경", value=record["file_name"], key=f"rn_mng_{record['id']}")
+                if st.button("💾 저장", key=f"rn_btn_mng_{record['id']}", use_container_width=True):
+                    supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", record["id"]).execute()
+                    st.toast("변경 완료!")
+                    time.sleep(0.5)
+                    st.rerun()
+                
+                st.divider()
+                
+                try:
+                    img_data = requests.get(record["file_path"]).content
+                    st.download_button("📥 다운로드", data=img_data, file_name=record["file_name"], mime="image/jpeg", key=f"dl_mng_{record['id']}", use_container_width=True)
+                except:
+                    pass
+                
+                if st.button("🗑️ 삭제", key=f"del_mng_{record['id']}", use_container_width=True, type="primary"):
+                    supabase.storage.from_("images").remove([record["file_path"].split("/")[-1]])
+                    supabase.table("image_embeddings").delete().eq("id", record["id"]).execute()
+                    st.toast("삭제 완료!")
+                    time.sleep(0.5)
+                    st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    except Exception:
+        st.error("이미지 에러")
 
 # =====================================================================
 # 화면 탭 구성
@@ -274,7 +309,7 @@ with tab_search:
                 inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
                 with torch.no_grad():
                     text_outputs = model.get_text_features(**inputs)
-                    text_tensor = text_outputs if isinstance(text_outputs, torch.Tensor) else (text_outputs.text_embeds if hasattr(text_outputs, "text_embeds") else (text_outputs.pooler_output if hasattr(text_outputs, "pooler_output") else text_outputs[0]))
+                    text_tensor = text_outputs if isinstance(text_outputs, torch.Tensor) else (text_outputs.text_embeds if hasattr(text_outputs, "text_embeds") else (text_outputs.pooler_output if hasattr(text_outputs, "pooler_output") else text_outputs))
                     final_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
 
                 query_vector = final_tensor.flatten().cpu().tolist()[:768]
@@ -297,7 +332,6 @@ with tab_search:
                     st.success(f"🎉 필터 조건에 맞는 총 {len(results)}장의 사진을 찾았습니다!")
                     displayed_results = results[: st.session_state.display_count]
 
-                    # 💡 5개 단위로 잘라오면서, 화면도 5칸(st.columns(5))으로 정상 수정 완료!
                     for start in range(0, len(displayed_results), 5):
                         cols = st.columns(5)
                         chunk = displayed_results[start:start + 5]
@@ -382,7 +416,7 @@ with tab_upload:
 
                         with torch.no_grad():
                             img_outputs = model.get_image_features(**inputs)
-                            img_tensor = img_outputs if isinstance(img_outputs, torch.Tensor) else (img_outputs.image_embeds if hasattr(img_outputs, "image_embeds") else (img_outputs.pooler_output if hasattr(img_outputs, "pooler_output") else img_outputs[0]))
+                            img_tensor = img_outputs if isinstance(img_outputs, torch.Tensor) else (img_outputs.image_embeds if hasattr(img_outputs, "image_embeds") else (img_outputs.pooler_output if hasattr(img_outputs, "pooler_output") else img_outputs))
                             img_tensor = img_tensor / img_tensor.norm(p=2, dim=-1, keepdim=True)
                             vector_list = img_tensor.flatten().cpu().tolist()[:768]
 
