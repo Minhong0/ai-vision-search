@@ -97,11 +97,6 @@ st.markdown(
         transform: scale(1.1);
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
-    
-    /* 숨겨진 팝오버 버튼 */
-    [data-testid="stPopover"] > button {
-        display: none !important;
-    }
 </style>
     """,
     unsafe_allow_html=True,
@@ -201,40 +196,37 @@ def render_search_card(result):
         <div class="image-card" id="{card_id}">
             <img src="{result['file_path']}" alt="{result['file_name']}">
             <div class="image-overlay">
-                <button class="menu-button" id="btn_{card_id}" title="메뉴">⋮</button>
+                <button class="menu-button" onclick="document.getElementById('popover_btn_{result['id']}').click();">⋮</button>
             </div>
         </div>
-        <script>
-            document.getElementById('btn_{card_id}').onclick = function() {{
-                document.querySelector('[data-testid="stPopover"] button').click();
-            }};
-        </script>
         """, unsafe_allow_html=True)
         
         st.markdown(f"**{result['file_name']}**")
-            
-        with st.popover("⋮", key=f"popover_{result['id']}"):
-            raw_size = result.get("file_size_kb", 0)
-            st.caption(f"🎯 {result['similarity']:.3f} · 💾 {int(raw_size)}KB")
-            
-            new_name = st.text_input("이름 변경", value=result["file_name"], key=f"rn_src_{result['id']}")
-            if st.button("💾 저장", key=f"rn_btn_src_{result['id']}", use_container_width=True):
-                supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", result["id"]).execute()
-                st.toast("변경 완료!")
-                time.sleep(0.5)
-                st.rerun()
-            
-            st.divider()
-            
-            img_data = requests.get(result["file_path"]).content
-            st.download_button("📥 다운로드", data=img_data, file_name=result["file_name"], mime="image/jpeg", key=f"dl_src_{result['id']}", use_container_width=True)
-            
-            if st.button("🗑️ 삭제", key=f"del_src_{result['id']}", use_container_width=True, type="primary"):
-                supabase.storage.from_("images").remove([result["file_path"].split("/")[-1]])
-                supabase.table("image_embeddings").delete().eq("id", result["id"]).execute()
-                st.toast("삭제 완료!")
-                time.sleep(0.5)
-                st.rerun()
+        
+        # 숨겨진 컨테이너에 팝오버 배치
+        with st.columns([1])[0]:
+            with st.popover("⋮", key=f"popover_{result['id']}"):
+                raw_size = result.get("file_size_kb", 0)
+                st.caption(f"🎯 {result['similarity']:.3f} · 💾 {int(raw_size)}KB")
+                
+                new_name = st.text_input("이름 변경", value=result["file_name"], key=f"rn_src_{result['id']}")
+                if st.button("💾 저장", key=f"rn_btn_src_{result['id']}", use_container_width=True):
+                    supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", result["id"]).execute()
+                    st.toast("변경 완료!")
+                    time.sleep(0.5)
+                    st.rerun()
+                
+                st.divider()
+                
+                img_data = requests.get(result["file_path"]).content
+                st.download_button("📥 다운로드", data=img_data, file_name=result["file_name"], mime="image/jpeg", key=f"dl_src_{result['id']}", use_container_width=True)
+                
+                if st.button("🗑️ 삭제", key=f"del_src_{result['id']}", use_container_width=True, type="primary"):
+                    supabase.storage.from_("images").remove([result["file_path"].split("/")[-1]])
+                    supabase.table("image_embeddings").delete().eq("id", result["id"]).execute()
+                    st.toast("삭제 완료!")
+                    time.sleep(0.5)
+                    st.rerun()
     except Exception as e:
         st.error(f"이미지 에러: {e}")
 
@@ -247,44 +239,41 @@ def render_manage_card(record):
         <div class="image-card" id="{card_id}">
             <img src="{record['file_path']}" alt="{record['file_name']}">
             <div class="image-overlay">
-                <button class="menu-button" id="btn_{card_id}" title="메뉴">⋮</button>
+                <button class="menu-button" onclick="document.getElementById('popover_btn_mng_{record['id']}').click();">⋮</button>
             </div>
         </div>
-        <script>
-            document.getElementById('btn_{card_id}').onclick = function() {{
-                document.querySelector('[data-testid="stPopover"] button').click();
-            }};
-        </script>
         """, unsafe_allow_html=True)
         
         st.markdown(f"**{record['file_name']}**")
-            
-        with st.popover("⋮", key=f"popover_mng_{record['id']}"):
-            raw_size = record.get("file_size_kb", 0)
-            created_date = record.get("created_at", "최근")[:10]
-            st.caption(f"📅 {created_date} · 💾 {int(raw_size)}KB")
+        
+        # 숨겨진 컨테이너에 팝오버 배치
+        with st.columns([1])[0]:
+            with st.popover("⋮", key=f"popover_mng_{record['id']}"):
+                raw_size = record.get("file_size_kb", 0)
+                created_date = record.get("created_at", "최근")[:10]
+                st.caption(f"📅 {created_date} · 💾 {int(raw_size)}KB")
 
-            new_name = st.text_input("이름 변경", value=record["file_name"], key=f"rn_mng_{record['id']}")
-            if st.button("💾 저장", key=f"rn_btn_mng_{record['id']}", use_container_width=True):
-                supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", record["id"]).execute()
-                st.toast("변경 완료!")
-                time.sleep(0.5)
-                st.rerun()
-            
-            st.divider()
-            
-            try:
-                img_data = requests.get(record["file_path"]).content
-                st.download_button("📥 다운로드", data=img_data, file_name=record["file_name"], mime="image/jpeg", key=f"dl_mng_{record['id']}", use_container_width=True)
-            except:
-                pass
-            
-            if st.button("🗑️ 삭제", key=f"del_mng_{record['id']}", use_container_width=True, type="primary"):
-                supabase.storage.from_("images").remove([record["file_path"].split("/")[-1]])
-                supabase.table("image_embeddings").delete().eq("id", record["id"]).execute()
-                st.toast("삭제 완료!")
-                time.sleep(0.5)
-                st.rerun()
+                new_name = st.text_input("이름 변경", value=record["file_name"], key=f"rn_mng_{record['id']}")
+                if st.button("💾 저장", key=f"rn_btn_mng_{record['id']}", use_container_width=True):
+                    supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", record["id"]).execute()
+                    st.toast("변경 완료!")
+                    time.sleep(0.5)
+                    st.rerun()
+                
+                st.divider()
+                
+                try:
+                    img_data = requests.get(record["file_path"]).content
+                    st.download_button("📥 다운로드", data=img_data, file_name=record["file_name"], mime="image/jpeg", key=f"dl_mng_{record['id']}", use_container_width=True)
+                except:
+                    pass
+                
+                if st.button("🗑️ 삭제", key=f"del_mng_{record['id']}", use_container_width=True, type="primary"):
+                    supabase.storage.from_("images").remove([record["file_path"].split("/")[-1]])
+                    supabase.table("image_embeddings").delete().eq("id", record["id"]).execute()
+                    st.toast("삭제 완료!")
+                    time.sleep(0.5)
+                    st.rerun()
     except Exception as e:
         st.error(f"이미지 에러: {e}")
 
