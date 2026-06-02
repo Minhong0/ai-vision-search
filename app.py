@@ -28,97 +28,34 @@ st.markdown(
 <style>
     .main-title { font-size: 2.2rem; font-weight: 800; text-align: center; }
     .subtitle { text-align: center; color: #888; font-size: 0.95rem; margin-bottom: 1.8rem; }
-
+    
+    /* 1. 이미지 1:1 강제 비율 및 둥근 모서리 */
+    [data-testid="stImage"] img {
+        aspect-ratio: 1 / 1 !important;
+        object-fit: cover !important;
+        border-radius: 8px !important;
+    }
+    
+    /* 💡 폭탄(gap: 0rem) 제거됨! 스트림릿 기본 여백은 그대로 둡니다. */
+    
+    /* 2. 팝오버(⋮) 버튼을 제목과 일직선이 되도록 예쁘게 정렬 */
+    [data-testid="stPopover"] > button {
+        background-color: transparent !important;
+        border: none !important;
+        color: #888 !important;
+        font-size: 1.3rem !important; /* 점 3개 크기 살짝 키움 */
+        font-weight: bold !important;
+        padding: 0 !important;
+        min-height: 0 !important;
+        margin-top: -5px !important; /* 제목(텍스트) 높이와 맞추기 위해 살짝 위로 올림 */
+    }
+    [data-testid="stPopover"] > button:hover {
+        color: #000 !important;
+        background-color: transparent !important;
+    }
+    
     /* 화면 깜빡임 방지 */
     div[data-stale="true"] { opacity: 1 !important; filter: none !important; transition: none !important; }
-
-    /* =====================================================================
-    🎯 이미지 호버 오버레이 스타일
-    ===================================================================== */
-    .image-card {
-        position: relative;
-        width: 100%;
-        overflow: hidden;
-        border-radius: 8px;
-        aspect-ratio: 1 / 1;
-    }
-
-    .image-card img {
-        display: block;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-
-    .image-overlay {
-        position: absolute;
-        inset: 0;
-        background: rgba(0, 0, 0, 0);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        opacity: 0;
-        transition: all 0.3s ease;
-        pointer-events: none; /* 클릭은 아래 Streamlit 버튼이 처리 */
-        border-radius: 8px;
-    }
-
-    /* 컬럼 호버 시 오버레이 표시 */
-    [data-testid="column"]:has(.image-card):hover .image-overlay {
-        background: rgba(0, 0, 0, 0.4);
-        opacity: 1;
-    }
-
-    .menu-icon {
-        color: white;
-        font-size: 32px;
-        font-weight: bold;
-        pointer-events: none;
-        text-shadow: 0 2px 6px rgba(0,0,0,0.5);
-    }
-
-    /* =====================================================================
-    Streamlit 팝오버 버튼을 이미지 위에 투명하게 배치
-    ===================================================================== */
-    [data-testid="column"]:has(.image-card) {
-        position: relative !important;
-    }
-
-    /* 팝오버 컨테이너를 이미지 영역(1:1)으로 절대 배치 */
-    [data-testid="column"]:has(.image-card) [data-testid="stPopover"] {
-        position: absolute !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 100% !important;
-        padding-bottom: 100% !important;
-        height: 0 !important;
-        z-index: 10 !important;
-    }
-
-    /* 버튼을 투명하게 하여 전체 이미지 영역을 클릭 가능하게 */
-    [data-testid="column"]:has(.image-card) [data-testid="stPopover"] > button {
-        position: absolute !important;
-        inset: 0 !important;
-        width: 100% !important;
-        height: 100% !important;
-        background: transparent !important;
-        border: none !important;
-        color: transparent !important;
-        cursor: pointer !important;
-        box-shadow: none !important;
-        min-height: unset !important;
-        padding: 0 !important;
-        font-size: 0 !important;
-        line-height: 0 !important;
-    }
-
-    [data-testid="column"]:has(.image-card) [data-testid="stPopover"] > button:hover,
-    [data-testid="column"]:has(.image-card) [data-testid="stPopover"] > button:focus {
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-        outline: none !important;
-    }
 </style>
     """,
     unsafe_allow_html=True,
@@ -207,60 +144,51 @@ with st.sidebar:
 
 
 # =====================================================================
-# 📇 카드 렌더링 함수 (사진 위 호버 오버레이 메뉴)
+# 📇 카드 렌더링 함수 (사진 아래 깔끔하게 정보 배치)
 # =====================================================================
 def render_search_card(result):
     try:
-        st.markdown(f"""
-        <div class="image-card">
-            <img src="{result['file_path']}" alt="{result['file_name']}">
-            <div class="image-overlay">
-                <div class="menu-icon">⋮</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        st.markdown(f"**{result['file_name']}**")
-
-        with st.popover("⋮", key=f"popover_{result['id']}"):
-            raw_size = result.get("file_size_kb", 0)
-            st.caption(f"🎯 {result['similarity']:.3f} · 💾 {int(raw_size)}KB")
-
-            new_name = st.text_input("이름 변경", value=result["file_name"], key=f"rn_src_{result['id']}")
-            if st.button("💾 저장", key=f"rn_btn_src_{result['id']}", use_container_width=True):
-                supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", result["id"]).execute()
-                st.toast("변경 완료!")
-                time.sleep(0.5)
-                st.rerun()
-
-            st.divider()
-
-            img_data = requests.get(result["file_path"]).content
-            st.download_button("📥 다운로드", data=img_data, file_name=result["file_name"], mime="image/jpeg", key=f"dl_src_{result['id']}", use_container_width=True)
-
-            if st.button("🗑️ 삭제", key=f"del_src_{result['id']}", use_container_width=True, type="primary"):
-                supabase.storage.from_("images").remove([result["file_path"].split("/")[-1]])
-                supabase.table("image_embeddings").delete().eq("id", result["id"]).execute()
-                st.toast("삭제 완료!")
-                time.sleep(0.5)
-                st.rerun()
-    except Exception as e:
-        st.error(f"이미지 에러: {e}")
+        st.image(result["file_path"], use_container_width=True)
+        
+        col_title, col_menu = st.columns([5, 1])
+        with col_title:
+            st.markdown(f"**{result['file_name']}**")
+            
+        with col_menu:
+            with st.popover("⋮"):
+                raw_size = result.get("file_size_kb", 0)
+                st.caption(f"🎯 {result['similarity']:.3f} · 💾 {int(raw_size)}KB")
+                
+                new_name = st.text_input("이름 변경", value=result["file_name"], key=f"rn_src_{result['id']}")
+                if st.button("💾 저장", key=f"rn_btn_src_{result['id']}", use_container_width=True):
+                    supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", result["id"]).execute()
+                    st.toast("변경 완료!")
+                    time.sleep(0.5)
+                    st.rerun()
+                
+                st.divider()
+                
+                img_data = requests.get(result["file_path"]).content
+                st.download_button("📥 다운로드", data=img_data, file_name=result["file_name"], mime="image/jpeg", key=f"dl_src_{result['id']}", use_container_width=True)
+                
+                if st.button("🗑️ 삭제", key=f"del_src_{result['id']}", use_container_width=True, type="primary"):
+                    supabase.storage.from_("images").remove([result["file_path"].split("/")[-1]])
+                    supabase.table("image_embeddings").delete().eq("id", result["id"]).execute()
+                    st.toast("삭제 완료!")
+                    time.sleep(0.5)
+                    st.rerun()
+    except Exception:
+        st.error("이미지 에러")
 
 def render_manage_card(record):
-    try:
-        st.markdown(f"""
-        <div class="image-card">
-            <img src="{record['file_path']}" alt="{record['file_name']}">
-            <div class="image-overlay">
-                <div class="menu-icon">⋮</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
+    st.image(record["file_path"], use_container_width=True)
+    
+    col_title, col_menu = st.columns([5, 1])
+    with col_title:
         st.markdown(f"**{record['file_name']}**")
-
-        with st.popover("⋮", key=f"popover_mng_{record['id']}"):
+        
+    with col_menu:
+        with st.popover("⋮"):
             raw_size = record.get("file_size_kb", 0)
             created_date = record.get("created_at", "최근")[:10]
             st.caption(f"📅 {created_date} · 💾 {int(raw_size)}KB")
@@ -271,23 +199,21 @@ def render_manage_card(record):
                 st.toast("변경 완료!")
                 time.sleep(0.5)
                 st.rerun()
-
+            
             st.divider()
-
+            
             try:
                 img_data = requests.get(record["file_path"]).content
                 st.download_button("📥 다운로드", data=img_data, file_name=record["file_name"], mime="image/jpeg", key=f"dl_mng_{record['id']}", use_container_width=True)
             except:
                 pass
-
+            
             if st.button("🗑️ 삭제", key=f"del_mng_{record['id']}", use_container_width=True, type="primary"):
                 supabase.storage.from_("images").remove([record["file_path"].split("/")[-1]])
                 supabase.table("image_embeddings").delete().eq("id", record["id"]).execute()
                 st.toast("삭제 완료!")
                 time.sleep(0.5)
                 st.rerun()
-    except Exception as e:
-        st.error(f"이미지 에러: {e}")
 
 # =====================================================================
 # 화면 탭 구성
@@ -348,7 +274,7 @@ with tab_search:
                 inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
                 with torch.no_grad():
                     text_outputs = model.get_text_features(**inputs)
-                    text_tensor = text_outputs if isinstance(text_outputs, torch.Tensor) else (text_outputs.text_embeds if hasattr(text_outputs, "text_embeds") else (text_outputs.pooler_output if hasattr(text_outputs, "pooler_output") else text_outputs))
+                    text_tensor = text_outputs if isinstance(text_outputs, torch.Tensor) else (text_outputs.text_embeds if hasattr(text_outputs, "text_embeds") else (text_outputs.pooler_output if hasattr(text_outputs, "pooler_output") else text_outputs[0]))
                     final_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
 
                 query_vector = final_tensor.flatten().cpu().tolist()[:768]
@@ -456,7 +382,7 @@ with tab_upload:
 
                         with torch.no_grad():
                             img_outputs = model.get_image_features(**inputs)
-                            img_tensor = img_outputs if isinstance(img_outputs, torch.Tensor) else (img_outputs.image_embeds if hasattr(img_outputs, "image_embeds") else (img_outputs.pooler_output if hasattr(img_outputs, "pooler_output") else img_outputs))
+                            img_tensor = img_outputs if isinstance(img_outputs, torch.Tensor) else (img_outputs.image_embeds if hasattr(img_outputs, "image_embeds") else (img_outputs.pooler_output if hasattr(img_outputs, "pooler_output") else img_outputs[0]))
                             img_tensor = img_tensor / img_tensor.norm(p=2, dim=-1, keepdim=True)
                             vector_list = img_tensor.flatten().cpu().tolist()[:768]
 
