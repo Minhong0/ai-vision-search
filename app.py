@@ -28,85 +28,96 @@ st.markdown(
 <style>
     .main-title { font-size: 2.2rem; font-weight: 800; text-align: center; }
     .subtitle { text-align: center; color: #888; font-size: 0.95rem; margin-bottom: 1.8rem; }
-    
-    /* 1. 이미지 1:1 강제 비율 및 둥근 모서리 */
-    [data-testid="stImage"] img {
-        aspect-ratio: 1 / 1 !important;
-        object-fit: cover !important;
-        border-radius: 8px !important;
-    }
-    
+
     /* 화면 깜빡임 방지 */
     div[data-stale="true"] { opacity: 1 !important; filter: none !important; transition: none !important; }
-    
+
     /* =====================================================================
     🎯 이미지 호버 오버레이 스타일
     ===================================================================== */
     .image-card {
         position: relative;
-        display: inline-block;
         width: 100%;
         overflow: hidden;
         border-radius: 8px;
+        aspect-ratio: 1 / 1;
     }
-    
+
     .image-card img {
         display: block;
         width: 100%;
-        height: auto;
-        aspect-ratio: 1 / 1;
+        height: 100%;
         object-fit: cover;
     }
-    
+
     .image-overlay {
         position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
+        inset: 0;
         background: rgba(0, 0, 0, 0);
         display: flex;
         align-items: center;
         justify-content: center;
         opacity: 0;
         transition: all 0.3s ease;
+        pointer-events: none; /* 클릭은 아래 Streamlit 버튼이 처리 */
         border-radius: 8px;
     }
-    
-    .image-card:hover .image-overlay {
+
+    /* 컬럼 호버 시 오버레이 표시 */
+    [data-testid="column"]:has(.image-card):hover .image-overlay {
         background: rgba(0, 0, 0, 0.4);
         opacity: 1;
     }
-    
-    .menu-button {
-        background: white;
-        border: none;
-        border-radius: 50%;
-        width: 50px;
-        height: 50px;
-        font-size: 24px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: transform 0.2s, box-shadow 0.2s;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        z-index: 100;
+
+    .menu-icon {
+        color: white;
+        font-size: 32px;
+        font-weight: bold;
+        pointer-events: none;
+        text-shadow: 0 2px 6px rgba(0,0,0,0.5);
     }
-    
-    .menu-button:hover {
-        transform: scale(1.1);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+
+    /* =====================================================================
+    Streamlit 팝오버 버튼을 이미지 위에 투명하게 배치
+    ===================================================================== */
+    [data-testid="column"]:has(.image-card) {
+        position: relative !important;
     }
-    
-    /* 팝오버 버튼 완전 숨김 */
-    .hidden-popover {
-        display: none !important;
-        visibility: hidden !important;
-        width: 0 !important;
+
+    /* 팝오버 컨테이너를 이미지 영역(1:1)으로 절대 배치 */
+    [data-testid="column"]:has(.image-card) [data-testid="stPopover"] {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        padding-bottom: 100% !important;
         height: 0 !important;
+        z-index: 10 !important;
+    }
+
+    /* 버튼을 투명하게 하여 전체 이미지 영역을 클릭 가능하게 */
+    [data-testid="column"]:has(.image-card) [data-testid="stPopover"] > button {
+        position: absolute !important;
+        inset: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        background: transparent !important;
+        border: none !important;
+        color: transparent !important;
+        cursor: pointer !important;
+        box-shadow: none !important;
+        min-height: unset !important;
         padding: 0 !important;
-        margin: 0 !important;
+        font-size: 0 !important;
+        line-height: 0 !important;
+    }
+
+    [data-testid="column"]:has(.image-card) [data-testid="stPopover"] > button:hover,
+    [data-testid="column"]:has(.image-card) [data-testid="stPopover"] > button:focus {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        outline: none !important;
     }
 </style>
     """,
@@ -200,38 +211,33 @@ with st.sidebar:
 # =====================================================================
 def render_search_card(result):
     try:
-        card_id = f"card_src_{result['id']}"
-        
-        # 🎯 이미지 위에 호버 메뉴 오버레이
         st.markdown(f"""
-        <div class="image-card" id="{card_id}">
+        <div class="image-card">
             <img src="{result['file_path']}" alt="{result['file_name']}">
             <div class="image-overlay">
-                <button class="menu-button" onclick="document.getElementById('popover_btn_{result['id']}').closest('button').click();" title="메뉴">⋮</button>
+                <div class="menu-icon">⋮</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
-        
+
         st.markdown(f"**{result['file_name']}**")
-        
-        # 팝오버 (숨김 처리)
-        st.markdown(f'<div class="hidden-popover" id="popover_container_{result["id"]}"></div>', unsafe_allow_html=True)
+
         with st.popover("⋮", key=f"popover_{result['id']}"):
             raw_size = result.get("file_size_kb", 0)
             st.caption(f"🎯 {result['similarity']:.3f} · 💾 {int(raw_size)}KB")
-            
+
             new_name = st.text_input("이름 변경", value=result["file_name"], key=f"rn_src_{result['id']}")
             if st.button("💾 저장", key=f"rn_btn_src_{result['id']}", use_container_width=True):
                 supabase.table("image_embeddings").update({"file_name": new_name}).eq("id", result["id"]).execute()
                 st.toast("변경 완료!")
                 time.sleep(0.5)
                 st.rerun()
-            
+
             st.divider()
-            
+
             img_data = requests.get(result["file_path"]).content
             st.download_button("📥 다운로드", data=img_data, file_name=result["file_name"], mime="image/jpeg", key=f"dl_src_{result['id']}", use_container_width=True)
-            
+
             if st.button("🗑️ 삭제", key=f"del_src_{result['id']}", use_container_width=True, type="primary"):
                 supabase.storage.from_("images").remove([result["file_path"].split("/")[-1]])
                 supabase.table("image_embeddings").delete().eq("id", result["id"]).execute()
@@ -243,22 +249,17 @@ def render_search_card(result):
 
 def render_manage_card(record):
     try:
-        card_id = f"card_mng_{record['id']}"
-        
-        # 🎯 이미지 위에 호버 메뉴 오버레이
         st.markdown(f"""
-        <div class="image-card" id="{card_id}">
+        <div class="image-card">
             <img src="{record['file_path']}" alt="{record['file_name']}">
             <div class="image-overlay">
-                <button class="menu-button" onclick="document.getElementById('popover_btn_mng_{record['id']}').closest('button').click();" title="메뉴">⋮</button>
+                <div class="menu-icon">⋮</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
-        
+
         st.markdown(f"**{record['file_name']}**")
-        
-        # 팝오버 (숨김 처리)
-        st.markdown(f'<div class="hidden-popover" id="popover_container_mng_{record["id"]}"></div>', unsafe_allow_html=True)
+
         with st.popover("⋮", key=f"popover_mng_{record['id']}"):
             raw_size = record.get("file_size_kb", 0)
             created_date = record.get("created_at", "최근")[:10]
@@ -270,15 +271,15 @@ def render_manage_card(record):
                 st.toast("변경 완료!")
                 time.sleep(0.5)
                 st.rerun()
-            
+
             st.divider()
-            
+
             try:
                 img_data = requests.get(record["file_path"]).content
                 st.download_button("📥 다운로드", data=img_data, file_name=record["file_name"], mime="image/jpeg", key=f"dl_mng_{record['id']}", use_container_width=True)
             except:
                 pass
-            
+
             if st.button("🗑️ 삭제", key=f"del_mng_{record['id']}", use_container_width=True, type="primary"):
                 supabase.storage.from_("images").remove([record["file_path"].split("/")[-1]])
                 supabase.table("image_embeddings").delete().eq("id", record["id"]).execute()
