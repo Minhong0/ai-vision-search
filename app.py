@@ -36,8 +36,6 @@ st.markdown(
         border-radius: 8px !important;
     }
     
-    /* 💡 폭탄(gap: 0rem) 제거됨! 스트림릿 기본 여백은 그대로 둡니다. */
-    
     /* 화면 깜빡임 방지 */
     div[data-stale="true"] { opacity: 1 !important; filter: none !important; transition: none !important; }
     
@@ -98,6 +96,11 @@ st.markdown(
     .menu-button:hover {
         transform: scale(1.1);
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    
+    /* 숨겨진 팝오버 버튼 */
+    [data-testid="stPopover"] > button {
+        display: none !important;
     }
 </style>
     """,
@@ -198,9 +201,14 @@ def render_search_card(result):
         <div class="image-card" id="{card_id}">
             <img src="{result['file_path']}" alt="{result['file_name']}">
             <div class="image-overlay">
-                <button class="menu-button" onclick="document.getElementById('popover_{result['id']}').click();" title="메뉴">⋮</button>
+                <button class="menu-button" id="btn_{card_id}" title="메뉴">⋮</button>
             </div>
         </div>
+        <script>
+            document.getElementById('btn_{card_id}').onclick = function() {{
+                document.querySelector('[data-testid="stPopover"] button').click();
+            }};
+        </script>
         """, unsafe_allow_html=True)
         
         st.markdown(f"**{result['file_name']}**")
@@ -227,8 +235,8 @@ def render_search_card(result):
                 st.toast("삭제 완료!")
                 time.sleep(0.5)
                 st.rerun()
-    except Exception:
-        st.error("이미지 에러")
+    except Exception as e:
+        st.error(f"이미지 에러: {e}")
 
 def render_manage_card(record):
     try:
@@ -239,9 +247,14 @@ def render_manage_card(record):
         <div class="image-card" id="{card_id}">
             <img src="{record['file_path']}" alt="{record['file_name']}">
             <div class="image-overlay">
-                <button class="menu-button" onclick="document.getElementById('popover_mng_{record['id']}').click();" title="메뉴">⋮</button>
+                <button class="menu-button" id="btn_{card_id}" title="메뉴">⋮</button>
             </div>
         </div>
+        <script>
+            document.getElementById('btn_{card_id}').onclick = function() {{
+                document.querySelector('[data-testid="stPopover"] button').click();
+            }};
+        </script>
         """, unsafe_allow_html=True)
         
         st.markdown(f"**{record['file_name']}**")
@@ -272,8 +285,8 @@ def render_manage_card(record):
                 st.toast("삭제 완료!")
                 time.sleep(0.5)
                 st.rerun()
-    except Exception:
-        st.error("이미지 에러")
+    except Exception as e:
+        st.error(f"이미지 에러: {e}")
 
 # =====================================================================
 # 화면 탭 구성
