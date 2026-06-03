@@ -136,21 +136,14 @@ if "tag_click_query" not in st.session_state:
 if "manage_page" not in st.session_state:
     st.session_state.manage_page = 0
 
-# ── 헤더 (그라디언트 카드) ───────────────────────────────────────────
+# ── 헤더 ────────────────────────────────────────────────────────────
 st.markdown(
     """
-<div style="
-    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-    padding: 2rem 1.5rem 1.8rem;
-    border-radius: 14px;
-    text-align: center;
-    margin-bottom: 1.4rem;
-    box-shadow: 0 4px 24px rgba(79,70,229,0.25);
-">
-    <h1 style="color:white; margin:0; font-size:2rem; font-weight:800; letter-spacing:-0.5px;">
+<div style="text-align:center; padding:1.4rem 0 1rem;">
+    <h1 style="margin:0; font-size:2rem; font-weight:800; letter-spacing:-0.5px;">
         🔍 자연어 클라우드 갤러리
     </h1>
-    <p style="color:rgba(255,255,255,0.82); margin:0.5rem 0 0; font-size:0.92rem;">
+    <p style="color:#888; margin:0.4rem 0 0; font-size:0.9rem;">
         AI 유사도 + 태그 검색 &nbsp;·&nbsp; 클라우드 업로드 &nbsp;·&nbsp; 갤러리 관리
     </p>
 </div>
