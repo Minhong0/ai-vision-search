@@ -19,8 +19,15 @@ st.markdown(
 <style>
     /* ── 1. Google Font ───────────────────────────────────────── */
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&display=swap');
-    html, body, [class*="st-"], .stMarkdown, .stText, label {
+    /* [class*="st-"] 는 Material Icons 클래스도 매칭되므로 제외 */
+    html, body, .stMarkdown, .stText, p, label, h1, h2, h3, h4, h5, h6, span:not([class*="material"]) {
         font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    }
+    /* Material Icons 폰트 보호 */
+    .material-symbols-rounded,
+    .material-icons,
+    span[class*="material"] {
+        font-family: 'Material Symbols Rounded', 'Material Icons', sans-serif !important;
     }
 
     /* ── 2. 이미지 카드 ────────────────────────────────────────── */
