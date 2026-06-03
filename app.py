@@ -2,7 +2,6 @@ import streamlit as st
 import torch
 import os
 import uuid
-import requests
 import time
 import datetime
 import collections
@@ -184,9 +183,7 @@ def render_search_card(result):
 
                 st.divider()
 
-                img_data = requests.get(result["file_path"]).content
-                st.download_button("📥 다운로드", data=img_data, file_name=result["file_name"],
-                                   mime="image/jpeg", key=f"dl_src_{result['id']}", use_container_width=True)
+                st.link_button("📥 다운로드", result["file_path"], use_container_width=True)
 
                 if st.button("🗑️ 삭제", key=f"del_src_{result['id']}", use_container_width=True, type="primary"):
                     supabase.storage.from_("images").remove([result["file_path"].split("/")[-1]])
@@ -250,12 +247,7 @@ def render_manage_card(record):
 
             st.divider()
 
-            try:
-                img_data = requests.get(record["file_path"]).content
-                st.download_button("📥 다운로드", data=img_data, file_name=record["file_name"],
-                                   mime="image/jpeg", key=f"dl_mng_{record['id']}", use_container_width=True)
-            except Exception:
-                pass
+            st.link_button("📥 다운로드", record["file_path"], use_container_width=True)
 
             if st.button("🗑️ 삭제", key=f"del_mng_{record['id']}", use_container_width=True, type="primary"):
                 supabase.storage.from_("images").remove([record["file_path"].split("/")[-1]])
@@ -333,7 +325,7 @@ with tab_text:
                     "filter_min_size_kb": min_size_kb,
                 }).execute()
 
-                TAG_BONUS = 0.3
+                TAG_BONUS = 0.08
                 merged = {}
                 for r in (clip_response.data or []):
                     r["clip_score"] = r["similarity"]
