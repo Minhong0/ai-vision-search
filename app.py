@@ -279,7 +279,7 @@ with tab_text:
 
     p1, p2 = st.columns(2)
     with p1:
-        match_threshold = st.slider("유사도 커트라인", 0.0, 0.4, 0.18, 0.01, key="threshold_t")
+        match_threshold = st.slider("유사도 커트라인", 0.0, 1.0, 0.6, 0.01, key="threshold_t")
     with p2:
         match_count = st.number_input("최대 개수", min_value=1, max_value=50, value=15, key="count_t")
 
