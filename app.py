@@ -65,6 +65,10 @@ if "last_query" not in st.session_state:
     st.session_state.last_query = ""
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = str(uuid.uuid4())
+if "img_search_ref_id" not in st.session_state:
+    st.session_state.img_search_ref_id = None
+if "img_search_ref_url" not in st.session_state:
+    st.session_state.img_search_ref_url = None
 
 
 @st.cache_resource
@@ -124,9 +128,18 @@ def render_search_card(result):
                 
                 st.divider()
                 
+                if st.button("🔍 비슷한 사진 찾기", key=f"sim_src_{result['id']}", use_container_width=True):
+                    st.session_state.img_search_ref_id = result["id"]
+                    st.session_state.img_search_ref_url = result["file_path"]
+                    st.session_state.search_mode = "🖼️ 이미지로 검색"
+                    st.session_state.display_count = 5
+                    st.rerun()
+
+                st.divider()
+
                 img_data = requests.get(result["file_path"]).content
                 st.download_button("📥 다운로드", data=img_data, file_name=result["file_name"], mime="image/jpeg", key=f"dl_src_{result['id']}", use_container_width=True)
-                
+
                 if st.button("🗑️ 삭제", key=f"del_src_{result['id']}", use_container_width=True, type="primary"):
                     supabase.storage.from_("images").remove([result["file_path"].split("/")[-1]])
                     supabase.table("image_embeddings").delete().eq("id", result["id"]).execute()
@@ -158,12 +171,22 @@ def render_manage_card(record):
             
             st.divider()
             
+            if st.button("🔍 비슷한 사진 찾기", key=f"sim_mng_{record['id']}", use_container_width=True):
+                st.session_state.img_search_ref_id = record["id"]
+                st.session_state.img_search_ref_url = record["file_path"]
+                st.session_state.search_mode = "🖼️ 이미지로 검색"
+                st.session_state.display_count = 5
+                st.toast("검색 탭에서 유사 사진을 확인하세요!", icon="🔍")
+                st.rerun()
+
+            st.divider()
+
             try:
                 img_data = requests.get(record["file_path"]).content
                 st.download_button("📥 다운로드", data=img_data, file_name=record["file_name"], mime="image/jpeg", key=f"dl_mng_{record['id']}", use_container_width=True)
             except:
                 pass
-            
+
             if st.button("🗑️ 삭제", key=f"del_mng_{record['id']}", use_container_width=True, type="primary"):
                 supabase.storage.from_("images").remove([record["file_path"].split("/")[-1]])
                 supabase.table("image_embeddings").delete().eq("id", record["id"]).execute()
@@ -182,18 +205,22 @@ with tab_search:
     st.subheader("🔍 사진 검색")
     st.caption("CLIP AI 유사도 점수와 태그 텍스트 일치 점수를 합산하여 결과를 보여줍니다.")
 
-    q1, q2, q3 = st.columns([3, 1, 1])
-    with q1:
-        query = st.text_input("검색어", placeholder="예: 인제대 마스코트, 안전모 쓴 작업자", key="search_input")
-    with q2:
+    search_mode = st.radio(
+        "검색 방식",
+        ["📝 텍스트 검색", "🖼️ 이미지로 검색"],
+        horizontal=True,
+        key="search_mode",
+    )
+
+    p1, p2 = st.columns(2)
+    with p1:
         match_threshold = st.slider("유사도 커트라인", 0.0, 0.4, 0.18, 0.01)
-    with q3:
+    with p2:
         match_count = st.number_input("최대 개수", min_value=1, max_value=50, value=15)
 
     with st.container(border=True):
         st.markdown("**상세 필터**")
         col1, col2 = st.columns(2)
-
         with col1:
             use_date_filter = st.checkbox("📅 업로드 날짜 필터 사용")
             if use_date_filter:
@@ -205,105 +232,178 @@ with tab_search:
             else:
                 start_date = None
                 end_date = None
-
         with col2:
             use_size_filter = st.checkbox("💾 파일 용량 필터 사용")
             if use_size_filter:
-                min_size_mb = st.number_input(
-                    "최소 용량 (MB)",
-                    min_value=0.0, max_value=100.0, value=1.0, step=0.5,
-                )
+                min_size_mb = st.number_input("최소 용량 (MB)", min_value=0.0, max_value=100.0, value=1.0, step=0.5)
                 min_size_kb = int(min_size_mb * 1024)
             else:
                 min_size_kb = None
 
-    if query:
-        if query != st.session_state.last_query:
-            st.session_state.display_count = 5
-            st.session_state.last_query = query
+    start_date_str = start_date.strftime("%Y-%m-%d") if start_date else None
+    end_date_str = end_date.strftime("%Y-%m-%d") if end_date else None
 
-        with st.spinner("AI 분석 중..."):
-            try:
-                start_date_str = start_date.strftime("%Y-%m-%d") if start_date else None
-                end_date_str = end_date.strftime("%Y-%m-%d") if end_date else None
+    # ─── 텍스트 검색 ──────────────────────────────────────────────────────
+    if search_mode == "📝 텍스트 검색":
+        query = st.text_input("검색어", placeholder="예: 안전모 쓴 작업자, 불량 부품", key="search_input")
 
-                # 1. CLIP 유사도 검색
-                inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
-                with torch.no_grad():
-                    text_outputs = model.get_text_features(**inputs)
-                    text_tensor = text_outputs if isinstance(text_outputs, torch.Tensor) else (text_outputs.text_embeds if hasattr(text_outputs, "text_embeds") else (text_outputs.pooler_output if hasattr(text_outputs, "pooler_output") else text_outputs[0]))
-                    final_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
+        if query:
+            if query != st.session_state.last_query:
+                st.session_state.display_count = 5
+                st.session_state.last_query = query
 
-                query_vector = final_tensor.flatten().cpu().tolist()[:768]
+            with st.spinner("AI 분석 중..."):
+                try:
+                    inputs = processor(text=[query], return_tensors="pt", padding=True).to(device)
+                    with torch.no_grad():
+                        text_outputs = model.get_text_features(**inputs)
+                        text_tensor = text_outputs if isinstance(text_outputs, torch.Tensor) else (text_outputs.text_embeds if hasattr(text_outputs, "text_embeds") else (text_outputs.pooler_output if hasattr(text_outputs, "pooler_output") else text_outputs[0]))
+                        final_tensor = text_tensor / text_tensor.norm(p=2, dim=-1, keepdim=True)
+                    query_vector = final_tensor.flatten().cpu().tolist()[:768]
 
-                clip_response = supabase.rpc(
-                    "match_images",
-                    {
-                        "query_embedding": query_vector,
-                        "match_threshold": match_threshold,
-                        "match_count": match_count,
-                        "filter_start_date": start_date_str,
-                        "filter_end_date": end_date_str,
-                        "filter_min_size_kb": min_size_kb,
-                    },
-                ).execute()
+                    clip_response = supabase.rpc(
+                        "match_images",
+                        {
+                            "query_embedding": query_vector,
+                            "match_threshold": match_threshold,
+                            "match_count": match_count,
+                            "filter_start_date": start_date_str,
+                            "filter_end_date": end_date_str,
+                            "filter_min_size_kb": min_size_kb,
+                        },
+                    ).execute()
 
-                # 2. 태그 텍스트 일치 검색
-                TAG_BONUS = 0.3
-                merged = {}
-
-                for r in (clip_response.data or []):
-                    r["clip_score"] = r["similarity"]
-                    r["tag_score"] = 0.0
-                    merged[r["id"]] = r
-
-                tag_query = supabase.table("image_embeddings").select(
-                    "id, file_name, file_path, file_size_kb"
-                ).ilike("tags", f"%{query}%")
-                if start_date_str:
-                    tag_query = tag_query.gte("created_at", start_date_str)
-                if end_date_str:
-                    tag_query = tag_query.lte("created_at", end_date_str + "T23:59:59")
-                if min_size_kb:
-                    tag_query = tag_query.gte("file_size_kb", min_size_kb)
-                tag_response = tag_query.execute()
-
-                for r in (tag_response.data or []):
-                    if r["id"] in merged:
-                        merged[r["id"]]["tag_score"] = TAG_BONUS
-                    else:
-                        r["clip_score"] = 0.0
-                        r["tag_score"] = TAG_BONUS
+                    TAG_BONUS = 0.3
+                    merged = {}
+                    for r in (clip_response.data or []):
+                        r["clip_score"] = r["similarity"]
+                        r["tag_score"] = 0.0
                         merged[r["id"]] = r
 
-                # 3. 합산 점수로 정렬
-                for r in merged.values():
-                    r["similarity"] = round(r["clip_score"] + r["tag_score"], 4)
+                    tag_query = supabase.table("image_embeddings").select(
+                        "id, file_name, file_path, file_size_kb"
+                    ).ilike("tags", f"%{query}%")
+                    if start_date_str:
+                        tag_query = tag_query.gte("created_at", start_date_str)
+                    if end_date_str:
+                        tag_query = tag_query.lte("created_at", end_date_str + "T23:59:59")
+                    if min_size_kb:
+                        tag_query = tag_query.gte("file_size_kb", min_size_kb)
+                    tag_response = tag_query.execute()
 
-                results = sorted(merged.values(), key=lambda x: x["similarity"], reverse=True)
-                results = [r for r in results if r["similarity"] >= match_threshold][:match_count]
+                    for r in (tag_response.data or []):
+                        if r["id"] in merged:
+                            merged[r["id"]]["tag_score"] = TAG_BONUS
+                        else:
+                            r["clip_score"] = 0.0
+                            r["tag_score"] = TAG_BONUS
+                            merged[r["id"]] = r
 
-                if results:
-                    st.success(f"🎉 필터 조건에 맞는 총 {len(results)}장의 사진을 찾았습니다!")
-                    displayed_results = results[: st.session_state.display_count]
+                    for r in merged.values():
+                        r["similarity"] = round(r["clip_score"] + r["tag_score"], 4)
 
-                    for start in range(0, len(displayed_results), 5):
-                        cols = st.columns(5)
-                        chunk = displayed_results[start:start + 5]
-                        for col, result in zip(cols, chunk):
-                            with col:
-                                render_search_card(result)
+                    results = sorted(merged.values(), key=lambda x: x["similarity"], reverse=True)
+                    results = [r for r in results if r["similarity"] >= match_threshold][:match_count]
 
-                    if st.session_state.display_count < len(results):
-                        if st.button("더 보기", use_container_width=True):
-                            st.session_state.display_count += 5
-                            st.rerun()
-                else:
-                    st.warning("⚠️ 사진을 찾지 못했습니다. 커트라인 수치를 낮춰보세요!")
-            except Exception as e:
-                st.error(f"❌ 검색 중 에러 발생: {e}")
+                    if results:
+                        st.success(f"🎉 총 {len(results)}장의 사진을 찾았습니다!")
+                        displayed_results = results[:st.session_state.display_count]
+                        for s in range(0, len(displayed_results), 5):
+                            cols = st.columns(5)
+                            for col, result in zip(cols, displayed_results[s:s + 5]):
+                                with col:
+                                    render_search_card(result)
+                        if st.session_state.display_count < len(results):
+                            if st.button("더 보기", use_container_width=True):
+                                st.session_state.display_count += 5
+                                st.rerun()
+                    else:
+                        st.warning("⚠️ 사진을 찾지 못했습니다. 커트라인 수치를 낮춰보세요!")
+                except Exception as e:
+                    st.error(f"❌ 검색 중 에러 발생: {e}")
+        else:
+            st.info("검색어를 입력하면 결과가 갤러리로 표시됩니다.")
+
+    # ─── 이미지로 검색 ────────────────────────────────────────────────────
     else:
-        st.info("검색어를 입력하면 결과가 갤러리로 표시됩니다.")
+        query_vector = None
+
+        if st.session_state.img_search_ref_url:
+            col_img, col_info = st.columns([1, 2])
+            with col_img:
+                st.image(st.session_state.img_search_ref_url, caption="기준 사진", use_container_width=True)
+            with col_info:
+                st.info("갤러리에서 선택한 사진을 기준으로 유사 사진을 검색합니다.")
+                if st.button("❌ 기준 사진 초기화", use_container_width=True):
+                    st.session_state.img_search_ref_id = None
+                    st.session_state.img_search_ref_url = None
+                    st.session_state.display_count = 5
+                    st.rerun()
+
+            emb_res = supabase.table("image_embeddings").select("embedding").eq(
+                "id", st.session_state.img_search_ref_id
+            ).execute()
+            if emb_res.data:
+                query_vector = emb_res.data[0]["embedding"]
+
+        else:
+            img_file = st.file_uploader(
+                "기준 이미지 업로드 (또는 갤러리에서 '비슷한 사진 찾기' 버튼 사용)",
+                type=["png", "jpg", "jpeg"],
+                key="img_search_uploader",
+            )
+            if img_file:
+                col_prev, _ = st.columns([1, 2])
+                with col_prev:
+                    st.image(img_file, caption="기준 사진", use_container_width=True)
+                with st.spinner("이미지 분석 중..."):
+                    img = Image.open(img_file).convert("RGB")
+                    inputs = processor(images=img, return_tensors="pt").to(device)
+                    with torch.no_grad():
+                        img_outputs = model.get_image_features(**inputs)
+                        img_tensor = img_outputs if isinstance(img_outputs, torch.Tensor) else (img_outputs.image_embeds if hasattr(img_outputs, "image_embeds") else (img_outputs.pooler_output if hasattr(img_outputs, "pooler_output") else img_outputs[0]))
+                        img_tensor = img_tensor / img_tensor.norm(p=2, dim=-1, keepdim=True)
+                        query_vector = img_tensor.flatten().cpu().tolist()[:768]
+
+        if query_vector:
+            with st.spinner("비슷한 사진 찾는 중..."):
+                try:
+                    response = supabase.rpc(
+                        "match_images",
+                        {
+                            "query_embedding": query_vector,
+                            "match_threshold": match_threshold,
+                            "match_count": match_count + 1,
+                            "filter_start_date": start_date_str,
+                            "filter_end_date": end_date_str,
+                            "filter_min_size_kb": min_size_kb,
+                        },
+                    ).execute()
+
+                    ref_id = st.session_state.get("img_search_ref_id")
+                    results = [r for r in (response.data or []) if r["id"] != ref_id][:match_count]
+                    for r in results:
+                        r["clip_score"] = r["similarity"]
+                        r["tag_score"] = 0.0
+
+                    if results:
+                        st.success(f"🎉 비슷한 분위기의 사진 {len(results)}장을 찾았습니다!")
+                        displayed = results[:st.session_state.display_count]
+                        for s in range(0, len(displayed), 5):
+                            cols = st.columns(5)
+                            for col, result in zip(cols, displayed[s:s + 5]):
+                                with col:
+                                    render_search_card(result)
+                        if st.session_state.display_count < len(results):
+                            if st.button("더 보기", use_container_width=True, key="img_more"):
+                                st.session_state.display_count += 5
+                                st.rerun()
+                    else:
+                        st.warning("⚠️ 비슷한 사진을 찾지 못했습니다. 커트라인 수치를 낮춰보세요!")
+                except Exception as e:
+                    st.error(f"❌ 검색 중 에러 발생: {e}")
+        else:
+            st.info("기준 이미지를 업로드하거나, 갤러리(관리 탭)에서 '🔍 비슷한 사진 찾기' 버튼을 눌러주세요.")
 
 
 # [탭 2] 업로드 기능
