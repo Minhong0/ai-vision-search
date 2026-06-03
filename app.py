@@ -17,17 +17,33 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-    /* ── 1. Google Font ───────────────────────────────────────── */
+    /* ── 1. 폰트 임포트 ─────────────────────────────────────────── */
+    /* Material Symbols 먼저 로드해야 아이콘 글리프가 올바르게 표시됨 */
+    @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block');
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&display=swap');
-    /* [class*="st-"] 는 Material Icons 클래스도 매칭되므로 제외 */
-    html, body, .stMarkdown, .stText, p, label, h1, h2, h3, h4, h5, h6, span:not([class*="material"]) {
+
+    /* span 은 아이콘 요소를 건드릴 수 있으므로 제외.
+       block-level 텍스트와 입력 요소만 대상으로 한정. */
+    html, body,
+    p, label, h1, h2, h3, h4, h5, h6,
+    input, textarea,
+    .stMarkdown, .stText,
+    [data-testid="stMarkdownContainer"],
+    [data-testid="stCaptionContainer"],
+    [data-testid="stHeader"],
+    [data-testid="stSubheader"] {
         font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif !important;
     }
-    /* Material Icons 폰트 보호 */
+
+    /* Material Symbols 아이콘 폰트 명시적 보호 */
     .material-symbols-rounded,
     .material-icons,
-    span[class*="material"] {
-        font-family: 'Material Symbols Rounded', 'Material Icons', sans-serif !important;
+    [data-testid="stFileUploaderDropzoneInstructions"] span,
+    [data-baseweb="tab"] span,
+    [data-testid="stPopover"] button span {
+        font-family: 'Material Symbols Rounded', 'Material Icons' !important;
+        font-feature-settings: 'liga' 1 !important;
+        -webkit-font-feature-settings: 'liga' 1 !important;
     }
 
     /* ── 2. 이미지 카드 ────────────────────────────────────────── */
@@ -160,7 +176,7 @@ st.markdown(
 
 # ── 사이드바 ──────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown(" AI 모델")
+    st.markdown("### 🤖 AI 모델")
     st.code("clip-vit-large-patch14-ko", language=None)
     st.divider()
     st.markdown("### 📊 현황")
