@@ -102,7 +102,12 @@ st.markdown(
         background-color: #f3f4f6 !important;
     }
 
-    /* ── 6. 깜빡임 방지 ───────────────────────────────────────── */
+    /* ── 6. 이미지 전체화면 버튼(expand_more) 숨김 ─────────────── */
+    [data-testid="StyledFullScreenButton"] {
+        display: none !important;
+    }
+
+    /* ── 7. 깜빡임 방지 ───────────────────────────────────────── */
     div[data-stale="true"] {
         opacity: 1 !important;
         filter: none !important;
