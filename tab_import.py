@@ -12,18 +12,18 @@ _TIMEOUT = 8
 
 
 def _get_secret(key: str) -> str | None:
-    """Fetch secret value from st.secrets first, then fall back to environment variables.
+    """Try Streamlit secrets first (local dev), then fall back to environment variables.
 
-    This allows using Streamlit's local .streamlit/secrets.toml during development
-    while also supporting GitHub Actions secrets/variables exposed as environment
-    variables in deployment pipelines.
+    This allows:
+    - Local dev: .streamlit/secrets.toml -> st.secrets["KEY"]
+    - CI / deployment: environment variables (exposed from GitHub Actions secrets)
     """
     try:
-        val = st.secrets.get(key) if hasattr(st, "secrets") else None
-        if val:
-            return val
+        if hasattr(st, "secrets"):
+            val = st.secrets.get(key)
+            if val:
+                return val
     except Exception:
-        # Ignore and try environment variables
         pass
     return os.environ.get(key)
 
@@ -115,7 +115,7 @@ def render():
 
     source = st.radio("검색 소스", sources, horizontal=True)
 
-    # ── 검색 입력 ─────────────────────────────────────────────────────
+    # ── 검색 입력 ──────────────────────────────────────────────────────
     col1, col2 = st.columns([3, 1])
     with col1:
         query = st.text_input("검색어", placeholder="예: 공장 안전모 작업자")
