@@ -119,7 +119,13 @@ def render():
 
         if photo:
             img = Image.open(photo).convert("RGB")
-            st.image(img, caption="촬영된 사진", use_container_width=True)
+            # Show the captured photo at one-quarter of its original width with a sensible minimum.
+            try:
+                quarter_w = max(120, img.width // 4)
+                st.image(img, caption="촬영된 사진", width=quarter_w)
+            except Exception:
+                # Fallback to original behaviour if any error occurs
+                st.image(photo, caption="촬영된 사진", use_container_width=True)
 
             tags, use_ocr = _tag_options("camera")
 
