@@ -6,6 +6,7 @@ import tab_image
 import tab_upload
 import tab_manage
 import tab_stats
+import tab_import
 
 st.set_page_config(
     page_title="인제 클라우드 갤러리",
@@ -176,7 +177,7 @@ st.markdown(
 
 # ── 사이드바 ──────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("### 🤖 AI 모델")
+    st.markdown("### AI 모델")
     st.code("clip-vit-large-patch14-ko", language=None)
     st.divider()
     st.markdown("### 📊 현황")
@@ -191,8 +192,8 @@ with st.sidebar:
         st.caption("통계를 불러오는 중...")
 
 # ── 탭 구성 ─────────────────────────────────────────────────────────
-t_text, t_img, t_upload, t_manage, t_stats = st.tabs([
-    "🔍 텍스트 검색", "🖼️ 이미지 검색", "☁️ 업로드", "🗂️ 관리", "📊 통계"
+t_text, t_img, t_upload, t_manage, t_stats, t_import = st.tabs([
+    "🔍 텍스트 검색", "🖼️ 이미지 검색", "☁️ 업로드", "🗂️ 관리", "📊 통계", "🌐 웹에서 가져오기"
 ])
 
 with t_text:
@@ -209,3 +210,6 @@ with t_manage:
 
 with t_stats:
     tab_stats.render()
+
+with t_import:
+    tab_import.render()
