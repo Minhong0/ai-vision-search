@@ -1,4 +1,5 @@
 import io
+import os
 import uuid
 import requests
 import streamlit as st
@@ -10,12 +11,34 @@ _HEADERS = {"User-Agent": "Mozilla/5.0"}
 _TIMEOUT = 8
 
 
+def _get_secret(key: str) -> str | None:
+    """Fetch secret value from st.secrets first, then fall back to environment variables.
+
+    This allows using Streamlit's local .streamlit/secrets.toml during development
+    while also supporting GitHub Actions secrets/variables exposed as environment
+    variables in deployment pipelines.
+    """
+    try:
+        val = st.secrets.get(key) if hasattr(st, "secrets") else None
+        if val:
+            return val
+    except Exception:
+        # Ignore and try environment variables
+        pass
+    return os.environ.get(key)
+
+
 def _search_naver(query: str, display: int) -> list:
+    client_id = _get_secret("NAVER_CLIENT_ID")
+    client_secret = _get_secret("NAVER_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        raise RuntimeError("Naver API keys are not configured")
+
     resp = requests.get(
         "https://openapi.naver.com/v1/search/image",
         headers={
-            "X-Naver-Client-Id": st.secrets["NAVER_CLIENT_ID"],
-            "X-Naver-Client-Secret": st.secrets["NAVER_CLIENT_SECRET"],
+            "X-Naver-Client-Id": client_id,
+            "X-Naver-Client-Secret": client_secret,
         },
         params={"query": query, "display": display, "sort": "sim"},
         timeout=_TIMEOUT,
@@ -28,11 +51,16 @@ def _search_naver(query: str, display: int) -> list:
 
 
 def _search_google(query: str, display: int) -> list:
+    api_key = _get_secret("GOOGLE_API_KEY")
+    cse_id = _get_secret("GOOGLE_CSE_ID")
+    if not api_key or not cse_id:
+        raise RuntimeError("Google Custom Search keys are not configured")
+
     resp = requests.get(
         "https://www.googleapis.com/customsearch/v1",
         params={
-            "key": st.secrets["GOOGLE_API_KEY"],
-            "cx": st.secrets["GOOGLE_CSE_ID"],
+            "key": api_key,
+            "cx": cse_id,
             "q": query,
             "searchType": "image",
             "num": min(display, 10),
@@ -66,12 +94,13 @@ def render():
     st.caption("네이버/구글에서 이미지를 검색하고 선택한 이미지를 바로 갤러리에 저장합니다.")
 
     # ── 소스 선택 ──────────────────────────────────────────────────────
-    naver_ok = "NAVER_CLIENT_ID" in st.secrets and "NAVER_CLIENT_SECRET" in st.secrets
-    google_ok = "GOOGLE_API_KEY" in st.secrets and "GOOGLE_CSE_ID" in st.secrets
+    naver_ok = bool(_get_secret("NAVER_CLIENT_ID") and _get_secret("NAVER_CLIENT_SECRET"))
+    google_ok = bool(_get_secret("GOOGLE_API_KEY") and _get_secret("GOOGLE_CSE_ID"))
 
     if not naver_ok and not google_ok:
         st.error(
-            "API 키가 없습니다. `.streamlit/secrets.toml` 에 다음 중 하나를 추가하세요.\n\n"
+            "API 키가 없습니다. `.streamlit/secrets.toml` 에 다음 중 하나를 추가하거나,\n"
+            "GitHub Actions 또는 배포 환경의 환경변수로 `NAVER_CLIENT_ID`/`NAVER_CLIENT_SECRET` 또는 `GOOGLE_API_KEY`/`GOOGLE_CSE_ID` 를 설정하세요.\n\n"
             "**Naver (권장, 무료 25,000회/일)**\n"
             "```toml\nNAVER_CLIENT_ID = \"...\"\nNAVER_CLIENT_SECRET = \"...\"\n```\n"
             "발급: https://developers.naver.com → 애플리케이션 등록 → 검색 API"
@@ -86,7 +115,7 @@ def render():
 
     source = st.radio("검색 소스", sources, horizontal=True)
 
-    # ── 검색 입력 ──────────────────────────────────────────────────────
+    # ── 검색 입력 ─────────────────────────────────────────────────────
     col1, col2 = st.columns([3, 1])
     with col1:
         query = st.text_input("검색어", placeholder="예: 공장 안전모 작업자")
