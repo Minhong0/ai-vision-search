@@ -6,7 +6,7 @@ import tab_image
 import tab_upload
 import tab_manage
 import tab_stats
-import tab_import
+
 
 st.set_page_config(
     page_title="인제 클라우드 갤러리",
@@ -193,7 +193,7 @@ with st.sidebar:
 
 # ── 탭 구성 ─────────────────────────────────────────────────────────
 t_text, t_img, t_upload, t_manage, t_stats, t_import = st.tabs([
-    "🔍 텍스트 검색", "🖼️ 이미지 검색", "☁️ 업로드", "🗂️ 관리", "📊 통계", "🌐 웹에서 가져오기"
+    "🔍 텍스트 검색", "🖼️ 이미지 검색", "☁️ 업로드", "🗂️ 관리", "📊 통계"
 ])
 
 with t_text:
