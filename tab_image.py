@@ -1,4 +1,6 @@
 import datetime
+import io
+import requests
 import streamlit as st
 from PIL import Image
 from database import supabase
@@ -47,7 +49,21 @@ def render():
     if st.session_state.img_search_ref_url:
         col_img, col_info = st.columns([1, 2])
         with col_img:
-            st.image(st.session_state.img_search_ref_url, caption="기준 사진", use_container_width=True)
+            # Download the reference image to determine its actual width and display at half size.
+            try:
+                resp = requests.get(
+                    st.session_state.img_search_ref_url,
+                    timeout=8,
+                    headers={"User-Agent": "Mozilla/5.0"},
+                )
+                resp.raise_for_status()
+                img = Image.open(io.BytesIO(resp.content)).convert("RGB")
+                # Calculate a sensible display width: half the original, but not too small.
+                half_width = max(150, img.width // 2)
+                st.image(img, caption="기준 사진", width=half_width)
+            except Exception:
+                # Fallback to the original behaviour if download fails
+                st.image(st.session_state.img_search_ref_url, caption="기준 사진", use_container_width=True)
         with col_info:
             st.info("관리 탭에서 선택한 사진을 기준으로 유사 사진을 검색합니다.")
             if st.button("❌ 기준 사진 초기화", use_container_width=True):
@@ -70,7 +86,13 @@ def render():
         if img_file:
             col_prev, _ = st.columns([1, 2])
             with col_prev:
-                st.image(img_file, caption="기준 사진", use_container_width=True)
+                # When user uploads, keep showing it at a reasonable width instead of full container.
+                try:
+                    img = Image.open(img_file).convert("RGB")
+                    half_w = max(150, img.width // 2)
+                    st.image(img, caption="기준 사진", width=half_w)
+                except Exception:
+                    st.image(img_file, caption="기준 사진", use_container_width=True)
             with st.spinner("이미지 분석 중..."):
                 img = Image.open(img_file).convert("RGB")
                 query_vector = get_image_embedding(img)
