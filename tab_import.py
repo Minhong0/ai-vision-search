@@ -11,21 +11,49 @@ _HEADERS = {"User-Agent": "Mozilla/5.0"}
 _TIMEOUT = 8
 
 
-def _get_secret(key: str) -> str | None:
-    """Try Streamlit secrets first (local dev), then fall back to environment variables.
+def _strip_quotes(v: str) -> str:
+    """Remove surrounding single/double quotes if present."""
+    if not v:
+        return v
+    if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+        return v[1:-1]
+    return v
 
-    This allows:
-    - Local dev: .streamlit/secrets.toml -> st.secrets["KEY"]
-    - CI / deployment: environment variables (exposed from GitHub Actions secrets)
+
+def _get_secret(key: str) -> str | None:
+    """
+    Try multiple places/formats for a secret:
+      1) st.secrets top-level (e.g. NAVER_CLIENT_ID)
+      2) st.secrets section (e.g. [NAVER] CLIENT_ID) when keys are stored in sections
+      3) environment variables (exact, upper, lower)
+    Return the value with surrounding quotes stripped if necessary.
     """
     try:
         if hasattr(st, "secrets"):
+            # 1) top-level st.secrets
             val = st.secrets.get(key)
             if val:
-                return val
+                return _strip_quotes(val)
+
+            # 2) section style: NAVER_CLIENT_ID -> st.secrets["NAVER"]["CLIENT_ID"]
+            if "_" in key:
+                section, name = key.split("_", 1)
+                sec = st.secrets.get(section)
+                if isinstance(sec, dict):
+                    v = sec.get(name) or sec.get(name.lower()) or sec.get(name.upper())
+                    if v:
+                        return _strip_quotes(v)
     except Exception:
+        # If st.secrets access raises unexpectedly, ignore and fallback to env
         pass
-    return os.environ.get(key)
+
+    # 3) Environment variables: try exact, upper, lower
+    for env_key in (key, key.upper(), key.lower()):
+        v = os.environ.get(env_key)
+        if v:
+            return _strip_quotes(v)
+
+    return None
 
 
 def _search_naver(query: str, display: int) -> list:
@@ -45,7 +73,7 @@ def _search_naver(query: str, display: int) -> list:
     )
     resp.raise_for_status()
     return [
-        {"title": item.get("title", ""), "url": item["link"], "thumb": item["thumbnail"]}
+        {"title": item.get("title", ""), "url": item["link"], "thumb": item.get("thumbnail")}
         for item in resp.json().get("items", [])
     ]
 
