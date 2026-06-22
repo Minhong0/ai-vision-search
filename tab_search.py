@@ -19,7 +19,7 @@ def render():
 
     p1, p2 = st.columns(2)
     with p1:
-        threshold = st.slider("유사도 커트라인", 0.0, 0.4, 0.18, 0.01, key="threshold_t")
+        threshold = st.slider("유사도 커트라인", 0.0, 0.4, 0.21, 0.01, key="threshold_t")
     with p2:
         count = st.number_input("최대 개수", min_value=1, max_value=50, value=15, key="count_t")
 
