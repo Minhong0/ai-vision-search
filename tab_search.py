@@ -4,7 +4,7 @@ from database import supabase
 from embeddings import get_text_embedding
 from cards import render_search_card
 
-TAG_BONUS = 0.21
+TAG_BONUS = 0.3
 
 
 def render():
