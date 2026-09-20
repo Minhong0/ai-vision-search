@@ -46,10 +46,11 @@ def render():
 
     query_vector = None
 
+    # 기준 이미지 정하기
     if st.session_state.img_search_ref_url:
+        # 1. 관리 탭에서 비슷한 이미지로 왔을때 비교
         col_img, col_info = st.columns([1, 2])
         with col_img:
-            # Download the reference image to determine its actual width and display at half size.
             try:
                 resp = requests.get(
                     st.session_state.img_search_ref_url,
@@ -58,11 +59,9 @@ def render():
                 )
                 resp.raise_for_status()
                 img = Image.open(io.BytesIO(resp.content)).convert("RGB")
-                # Calculate a sensible display width: half the original, but not too small.
                 half_width = max(150, img.width // 2)
                 st.image(img, caption="기준 사진", width=half_width)
             except Exception:
-                # Fallback to the original behaviour if download fails
                 st.image(st.session_state.img_search_ref_url, caption="기준 사진", use_container_width=True)
         with col_info:
             st.info("관리 탭에서 선택한 사진을 기준으로 유사 사진을 검색합니다.")
@@ -71,18 +70,21 @@ def render():
                 st.session_state.img_search_ref_url = None
                 st.session_state.display_count_img = 5
                 st.rerun()
-
+                
+        # CLIP 재계산 없이 DB에 미리 저장해둔 768차원 벡터 호출
         emb_res = supabase.table("image_embeddings").select("embedding").eq(
             "id", st.session_state.img_search_ref_id
         ).execute()
         if emb_res.data:
             query_vector = emb_res.data[0]["embedding"]
     else:
+        # 2. 새이미지 파일 가져올 경우
         img_file = st.file_uploader(
             "기준 이미지 업로드 (또는 관리 탭에서 '비슷한 사진 찾기' 버튼 사용)",
             type=["png", "jpg", "jpeg"],
             key="img_search_uploader",
         )
+        # 이미지 분석할때 동일하게 get_image_embedding 호출 하여 비교
         if img_file:
             col_prev, _ = st.columns([1, 2])
             with col_prev:
@@ -100,9 +102,10 @@ def render():
     if not query_vector:
         st.info("기준 이미지를 업로드하거나, 관리 탭에서 '🔍 비슷한 사진 찾기' 버튼을 눌러주세요.")
         return
-
+    
     with st.spinner("비슷한 사진 찾는 중..."):
         try:
+            # pgvector RPC 호출
             response = supabase.rpc("match_images", {
                 "query_embedding": query_vector,
                 "match_threshold": threshold,
