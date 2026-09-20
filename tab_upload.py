@@ -19,6 +19,7 @@ def _save_image(img: Image.Image, original_filename: str, tags: str | None, use_
     file_bytes = buf.getvalue()
     file_size_kb = len(file_bytes) // 1024
 
+    # 원본 이미지 파일 Supabase Storage에 저장
     supabase.storage.from_("images").upload(
         path=safe_filename,
         file=file_bytes,
@@ -26,8 +27,10 @@ def _save_image(img: Image.Image, original_filename: str, tags: str | None, use_
     )
     public_url = supabase.storage.from_("images").get_public_url(safe_filename)
 
+    # Clip 이미지 인코더 호출 => 이미지 -> 768차원 정규화
     vector_list = get_image_embedding(img)
 
+    # (선택) OCR로 이미지 속 텍스트 읽어 태그에 합산. 하지만 성능이 애매함
     ocr_tag_str = ""
     if use_ocr and ocr_reader is not None:
         ocr_texts = ocr_reader.readtext(np.array(img), detail=0)
@@ -35,8 +38,10 @@ def _save_image(img: Image.Image, original_filename: str, tags: str | None, use_
         if ocr_tag_str:
             st.caption(f"OCR 감지: {ocr_tag_str}")
 
+    # 사용자가 직접 입력한 태그 + OCR로 뽑아낸 텍스트를 공백으로 이어붙여 하나의 태그 문자열로
     merged_tags = " ".join(filter(None, [tags, ocr_tag_str])) or None
 
+    # 메타데이터 + 벡터 + 태그를 한 행으로 image_embeddings 테이블에 insert.
     supabase.table("image_embeddings").insert({
         "file_name": original_filename,
         "file_path": public_url,
@@ -64,7 +69,7 @@ def _tag_options(key_prefix: str) -> tuple[str, bool]:
     return tags, use_ocr
 
 
-def _flush_cache() -> None:
+def _flush_cache() -> None: # 새 이미지 추가로 인해 갤러리/통계 캐시 초기화하여 목록 받기.
     fetch_gallery.clear()
     fetch_stats.clear()
 
