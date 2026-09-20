@@ -59,8 +59,10 @@ def render():
 
     with st.spinner("AI 분석 중..."):
         try:
+            # CLIP 텍스트 인코더 호출
             query_vector = get_text_embedding(query)
 
+            # pgvector RPC 호출
             clip_res = supabase.rpc("match_images", {
                 "query_embedding": query_vector,
                 "match_threshold": threshold,
@@ -69,13 +71,14 @@ def render():
                 "filter_end_date": eds,
                 "filter_min_size_kb": min_kb,
             }).execute()
-
+            
             merged = {}
             for r in (clip_res.data or []):
                 r["clip_score"] = r["similarity"]
                 r["tag_score"] = 0.0
                 merged[r["id"]] = r
 
+            # 날짜 지정시 비교
             tq = supabase.table("image_embeddings").select(
                 "id, file_name, file_path, file_size_kb, tags"
             ).ilike("tags", f"%{query}%")
@@ -87,6 +90,7 @@ def render():
                 tq = tq.gte("file_size_kb", min_kb)
             tag_res = tq.execute()
 
+            #  태그 값 일치확인
             for r in (tag_res.data or []):
                 if r["id"] in merged:
                     merged[r["id"]]["tag_score"] = TAG_BONUS
@@ -98,7 +102,7 @@ def render():
 
             for r in merged.values():
                 r["similarity"] = round(r["clip_score"] + r["tag_score"], 4)
-
+            
             results = sorted(merged.values(), key=lambda x: x["similarity"], reverse=True)
             results = [r for r in results if r["similarity"] >= threshold][:count]
 
