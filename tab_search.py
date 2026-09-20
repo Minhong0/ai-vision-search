@@ -78,7 +78,7 @@ def render():
                 r["tag_score"] = 0.0
                 merged[r["id"]] = r
 
-            # 날짜 지정시 비교
+            # 검색어가 포함된 태그 검색 (+ 조건부 날짜/용량 필터링)
             tq = supabase.table("image_embeddings").select(
                 "id, file_name, file_path, file_size_kb, tags"
             ).ilike("tags", f"%{query}%")
