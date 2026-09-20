@@ -5,13 +5,14 @@ from transformers import AutoProcessor, AutoModel
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
+# 모델 호출
 @st.cache_resource(show_spinner="CLIP 모델 로딩중...")
 def load_ai_model():
     processor = AutoProcessor.from_pretrained("Bingsu/clip-vit-large-patch14-ko")
     model = AutoModel.from_pretrained("Bingsu/clip-vit-large-patch14-ko").to(device)
     return processor, model
 
-
+# OCR 모델 호출
 @st.cache_resource(show_spinner="OCR 모델 로딩중...")
 def load_ocr_reader():
     try:
