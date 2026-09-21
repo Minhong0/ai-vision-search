@@ -176,7 +176,7 @@ st.markdown(
 
 # ── 사이드바 ──────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("### 🤖 AI 모델")
+    st.markdown("### AI 모델")
     st.code("clip-vit-large-patch14-ko", language=None)
     st.divider()
     st.markdown("### 📊 현황")
